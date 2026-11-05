@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, Minus, Plus, Search, X } from 'lucide-react'
 import './App.css'
 
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const apiUrl = import.meta.env.VITE_API_URL || ''
 
 const imageFor = (name) => {
   const imageNames = {

@@ -38,5 +38,23 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-The browser calls the Express API at `http://localhost:3001`. Keep the
-Supabase service-role key server-only; never put it in `client/.env`.
+Locally, the browser calls the Express API at `http://localhost:3001`.
+Keep the Supabase service-role key server-only; never put it in `client/.env`.
+
+## Deploy to Vercel
+
+The repository root is configured for Vercel: it builds the client into
+`client/dist` and serves `/api/menu` as a serverless function. Import the
+repository into Vercel with the project root as the Root Directory, then add
+these Environment Variables for the Production (and Preview, if needed)
+environments:
+
+- `SUPABASE_URL`: the Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: the service-role key, stored only in Vercel
+  server-side environment variables. The API returns only public menu fields.
+  Alternatively, use `SUPABASE_ANON_KEY` if the database grants anonymous
+  read access to the menu tables.
+
+Do not set `VITE_API_URL` for the Vercel deployment; the client calls the
+same-origin `/api/menu` endpoint. After adding or changing variables, redeploy
+the project. The local Express server remains available with `npm run dev:server`.
