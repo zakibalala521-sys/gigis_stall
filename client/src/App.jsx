@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, Minus, Plus, Search, X } from 'lucide-react'
+import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
@@ -26,6 +26,13 @@ function App() {
   const [cart, setCart] = useState([])
   const [error, setError] = useState('')
   const [trayOpen, setTrayOpen] = useState(false)
+  const [view, setView] = useState('catalog')
+  const [user, setUser] = useState(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordVisible, setPasswordVisible] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
     fetch(`${apiUrl}/api/menu`)
@@ -36,6 +43,16 @@ function App() {
       })
       .then((data) => setProducts(data.products || []))
       .catch((requestError) => setError(requestError.message))
+  }, [])
+
+  useEffect(() => {
+    fetch(`${apiUrl}/api/auth/session`, { credentials: 'include' })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok || !data.success) throw new Error(data.message || 'Could not verify the sign-in session.')
+        if (data.authenticated) setUser(data.user)
+      })
+      .catch((requestError) => console.error(requestError))
   }, [])
 
   const categories = useMemo(() => [
@@ -63,13 +80,50 @@ function App() {
     })
   }
 
+  const signIn = async (event) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.message || 'Could not sign in.')
+
+      setUser(data.user)
+      setPassword('')
+      setView('catalog')
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const signOut = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.message || 'Could not sign out.')
+      setUser(null)
+    } catch (requestError) {
+      setAuthError(requestError.message)
+      setView('auth')
+    }
+  }
+
   return (
     <>
       <header className="site-header">
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
-          <a className="active" href="#menu">Menu</a>
-          <a href="#about">About us</a>
+          <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
+          {user ? <><span className="account-name">{user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setView('auth') }}>Sign in</button>}
           <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
           </button>
@@ -77,6 +131,30 @@ function App() {
       </header>
 
       <main>
+        {view === 'auth' ? (
+          <section className="auth-page">
+            <div className="auth-card">
+              <p className="eyebrow">Welcome back</p>
+              <h1>Good to see<br /><i>you again.</i></h1>
+              <p className="auth-intro">Sign in to your Gigi&apos;s account.</p>
+              <form className="auth-form" onSubmit={signIn}>
+                <label htmlFor="login-email">Email</label>
+                <input id="login-email" type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+                <label htmlFor="login-password">Password</label>
+                <div className="password-input-wrap">
+                  <input id="login-password" type={passwordVisible ? 'text' : 'password'} name="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
+                  <button className="password-toggle" type="button" onClick={() => setPasswordVisible((visible) => !visible)} aria-label={passwordVisible ? 'Hide password' : 'Show password'}>
+                    {passwordVisible ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
+                </div>
+                {authError && <p className="auth-error" role="alert">{authError}</p>}
+                <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Signing in...' : 'Sign in'} <span>→</span></button>
+              </form>
+              <p className="auth-note">Use the email and password for your verified Gigi&apos;s account.</p>
+            </div>
+          </section>
+        ) : (
+          <>
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow">Welcome to</p>
@@ -120,9 +198,11 @@ function App() {
             ))}
           </div>
         </section>
+          </>
+        )}
       </main>
 
-      <footer className="site-footer" id="about"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
+      <footer className="site-footer"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
 
       {trayOpen && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item.name)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div><button className="button button-dark full" type="button">Continue to checkout <span>→</span></button></>}</aside></div>}
     </>

@@ -54,7 +54,14 @@ environments:
   server-side environment variables. The API returns only public menu fields.
   Alternatively, use `SUPABASE_ANON_KEY` if the database grants anonymous
   read access to the menu tables.
+- `SESSION_SECRET`: a private random secret of at least 32 characters, used to
+  sign HTTP-only login session cookies. Generate one locally, for example with
+  `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`,
+  and enter it directly in Vercel.
 
 Do not set `VITE_API_URL` for the Vercel deployment; the client calls the
-same-origin `/api/menu` endpoint. After adding or changing variables, redeploy
-the project. The local Express server remains available with `npm run dev:server`.
+same-origin API routes. After adding or changing variables, redeploy the
+project. Sign-in reads the existing `users`, `account_verifications`,
+`pending_accounts`, and `auth_attempts` tables in Supabase; it does not use
+Supabase Auth. The local Express server remains available with
+`npm run dev:server`; set `SESSION_SECRET` in `server/.env` for local sign-in.

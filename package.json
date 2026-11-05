@@ -10,5 +10,8 @@
     "build": "npm --prefix client run build",
     "lint": "npm --prefix client run lint",
     "start": "npm --prefix server run start"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
   }
 }
