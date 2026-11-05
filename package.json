@@ -1,0 +1,14 @@
+{
+  "name": "gigisfoodstall",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gigi's Food Stall React client and Express server",
+  "scripts": {
+    "dev": "npm run dev:client",
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build": "npm --prefix client run build",
+    "lint": "npm --prefix client run lint",
+    "start": "npm --prefix server run start"
+  }
+}
