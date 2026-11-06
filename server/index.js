@@ -6,13 +6,14 @@ const { createClient } = require('@supabase/supabase-js');
 const loginHandler = require('../api/auth/login');
 const sessionHandler = require('../api/auth/session');
 const logoutHandler = require('../api/auth/logout');
+const resetPasswordHandler = require('../api/auth/reset-password');
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
 const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY are required.');
+if (!process.env.SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  throw new Error('SUPABASE_URL and either SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY are required.');
 }
 
 const supabase = createClient(
@@ -31,6 +32,7 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/login', loginHandler);
 app.get('/api/auth/session', sessionHandler);
 app.post('/api/auth/logout', logoutHandler);
+app.post('/api/auth/reset-password', resetPasswordHandler);
 
 app.get('/api/menu', async (req, res, next) => {
   try {
