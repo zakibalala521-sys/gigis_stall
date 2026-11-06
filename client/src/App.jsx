@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
+import OwnerDashboard from './OwnerDashboard'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
@@ -50,7 +51,10 @@ function App() {
       .then(async (response) => {
         const data = await response.json()
         if (!response.ok || !data.success) throw new Error(data.message || 'Could not verify the sign-in session.')
-        if (data.authenticated) setUser(data.user)
+        if (data.authenticated) {
+          setUser(data.user)
+          if (data.user.role === 'owner') setView('admin')
+        }
       })
       .catch((requestError) => console.error(requestError))
   }, [])
@@ -97,7 +101,7 @@ function App() {
 
       setUser(data.user)
       setPassword('')
-      setView('catalog')
+      setView(data.user.role === 'owner' ? 'admin' : 'catalog')
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -123,7 +127,7 @@ function App() {
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
           <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <><span className="account-name">{user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setView('auth') }}>Sign in</button>}
+          {user ? <>{user.role === 'owner' && <button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button>}<span className="account-name">{user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setView('auth') }}>Sign in</button>}
           <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
           </button>
@@ -153,6 +157,8 @@ function App() {
               <p className="auth-note">Use the email and password for your verified Gigi&apos;s account.</p>
             </div>
           </section>
+        ) : view === 'admin' && user?.role === 'owner' ? (
+          <OwnerDashboard />
         ) : (
           <>
         <section className="hero">

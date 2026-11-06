@@ -1,0 +1,38 @@
+.owner-dashboard { margin:35px auto 110px; max-width:1320px; min-height:560px; padding:0 5vw; }
+.admin-heading { align-items:end; display:flex; justify-content:space-between; margin-bottom:44px; }
+.admin-heading h1 { font-size:clamp(45px,6vw,78px); }
+.admin-heading h1 i { color:var(--tomato); }
+.refresh-button { align-items:center; gap:9px; }
+.refresh-button:disabled { cursor:wait; opacity:.65; }
+.dashboard-stats { display:grid; gap:14px; grid-template-columns:repeat(4,1fr); margin-bottom:58px; }
+.dashboard-stats article { background:var(--cream); display:flex; flex-direction:column; gap:12px; min-height:130px; padding:22px; }
+.dashboard-stats span,.dashboard-stats small { color:var(--muted); font-size:12px; }
+.dashboard-stats strong { font-family:'Playfair Display',serif; font-size:clamp(23px,3vw,34px); }
+.dashboard-stats small { margin-top:-8px; }
+.dashboard-orders { border-top:1px solid var(--line); padding-top:26px; }
+.dashboard-section-heading { align-items:end; display:flex; justify-content:space-between; margin-bottom:20px; }
+.dashboard-section-heading h2 { font-size:32px; }
+.dashboard-section-heading .eyebrow { margin-bottom:10px; }
+.dashboard-section-heading > span { color:var(--muted); font-size:12px; }
+.dashboard-table-wrap { overflow-x:auto; }
+.dashboard-table { border-collapse:collapse; font-size:12px; min-width:850px; text-align:left; width:100%; }
+.dashboard-table th { color:var(--muted); font-size:10px; font-weight:500; letter-spacing:.08em; padding:12px 10px; text-transform:uppercase; }
+.dashboard-table td { border-top:1px solid var(--line); padding:15px 10px; white-space:nowrap; }
+.order-status { background:var(--cream); border-radius:20px; display:inline-block; padding:6px 10px; text-transform:capitalize; }
+.status-pending { background:#f6e8c8; }
+.status-preparing { background:#dce7f1; }
+.status-ready { background:#dcebdd; }
+.status-completed { background:#e2e4df; }
+.status-cancelled { background:#f6d8d0; }
+.dashboard-error { background:#f6d8d0; color:#812b1b; font-size:13px; padding:14px; }
+
+@media(max-width:850px) {
+  .dashboard-stats { grid-template-columns:repeat(2,1fr); }
+}
+
+@media(max-width:520px) {
+  .admin-heading { align-items:flex-start; flex-direction:column; gap:24px; }
+  .dashboard-section-heading { align-items:flex-start; flex-direction:column; gap:8px; }
+  .dashboard-stats { gap:8px; }
+  .dashboard-stats article { min-height:110px; padding:16px; }
+}

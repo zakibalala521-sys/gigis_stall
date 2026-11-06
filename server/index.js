@@ -6,6 +6,7 @@ const { createClient } = require('@supabase/supabase-js');
 const loginHandler = require('../api/auth/login');
 const sessionHandler = require('../api/auth/session');
 const logoutHandler = require('../api/auth/logout');
+const dashboardHandler = require('../api/admin/dashboard');
 const resetPasswordHandler = require('../api/auth/reset-password');
 
 const app = express();
@@ -32,6 +33,7 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/login', loginHandler);
 app.get('/api/auth/session', sessionHandler);
 app.post('/api/auth/logout', logoutHandler);
+app.get('/api/admin/dashboard', dashboardHandler);
 app.post('/api/auth/reset-password', resetPasswordHandler);
 
 app.get('/api/menu', async (req, res, next) => {
