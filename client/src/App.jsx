@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
+import MenuManager from './MenuManager'
 import OwnerDashboard from './OwnerDashboard'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
 
-const imageFor = (name) => {
+const imageFor = (product) => {
+  if (product.image) {
+    if (/^https?:\/\//i.test(product.image) || product.image.startsWith('/')) return product.image
+    const filename = product.image.split(/[\\/]/).pop()
+    if (filename) return `/menu/${encodeURIComponent(filename)}`
+  }
   const imageNames = {
     'Banana Cue': 'banana-cue.jpg',
     'Chicken Pastil Rice': 'chicken-pastil-rice.jpg',
@@ -17,7 +23,7 @@ const imageFor = (name) => {
     'Sunny Side Up': 'sunny-side-up.jpg',
     Waffle: 'waffle.jpg',
   }
-  return `/menu/${imageNames[name] || 'placeholder.svg'}`
+  return `/menu/${imageNames[product.name] || 'placeholder.svg'}`
 }
 
 function App() {
@@ -34,6 +40,8 @@ function App() {
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(false)
+  const [catalogVersion, setCatalogVersion] = useState(0)
 
   useEffect(() => {
     fetch(`${apiUrl}/api/menu`)
@@ -44,7 +52,7 @@ function App() {
       })
       .then((data) => setProducts(data.products || []))
       .catch((requestError) => setError(requestError.message))
-  }, [])
+  }, [catalogVersion])
 
   useEffect(() => {
     fetch(`${apiUrl}/api/auth/session`, { credentials: 'include' })
@@ -57,6 +65,7 @@ function App() {
         }
       })
       .catch((requestError) => console.error(requestError))
+      .finally(() => setSessionChecked(true))
   }, [])
 
   const categories = useMemo(() => [
@@ -72,6 +81,7 @@ function App() {
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
   const cartTotal = cart.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
+  const isOwner = user?.role === 'owner'
 
   const updateCart = (product, change) => {
     setCart((current) => {
@@ -127,10 +137,10 @@ function App() {
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
           <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <>{user.role === 'owner' && <button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button>}<span className="account-name">{user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setView('auth') }}>Sign in</button>}
-          <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
+          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}<span className="account-name">{user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setView('auth') }}>Sign in</button>}
+          {sessionChecked && !isOwner && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
-          </button>
+          </button>}
         </nav>
       </header>
 
@@ -159,6 +169,8 @@ function App() {
           </section>
         ) : view === 'admin' && user?.role === 'owner' ? (
           <OwnerDashboard />
+        ) : view === 'manage-menu' && user?.role === 'owner' ? (
+          <MenuManager onMenuChanged={() => setCatalogVersion((version) => version + 1)} />
         ) : (
           <>
         <section className="hero">
@@ -174,7 +186,7 @@ function App() {
             <ul className="banner-menu">
               {products.slice(0, 5).map((product) => (
                 <li key={product.product_id}>
-                  <img src={imageFor(product.name)} alt="" />
+                  <img src={imageFor(product)} alt="" />
                   <span>{product.name}</span>
                   <strong>₱{Number(product.price).toFixed(0)}</strong>
                 </li>
@@ -198,8 +210,8 @@ function App() {
           <div className="product-grid">
             {visibleProducts.map((product) => (
               <article className="product-card" key={product.product_id}>
-                <div className="product-image"><img src={imageFor(product.name)} alt={product.name} /><span>{product.categories?.name || 'Menu item'}</span></div>
-                <div className="product-info"><div><h3>{product.name}</h3><p>{product.description || 'Made fresh for you.'}</p></div><div className="product-buy"><strong>₱{Number(product.price).toFixed(2)}</strong><button className="add-button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={18} /></button></div></div>
+                <div className="product-image"><img src={imageFor(product)} alt={product.name} /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}</div>
+                <div className="product-info"><div><h3>{product.name}</h3><p>{product.description || 'Made fresh for you.'}</p></div><div className="product-buy"><strong>₱{Number(product.price).toFixed(2)}</strong>{sessionChecked && !isOwner && product.is_available === 1 && <button className="add-button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={18} /></button>}</div></div>
               </article>
             ))}
           </div>
@@ -210,7 +222,7 @@ function App() {
 
       <footer className="site-footer"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
 
-      {trayOpen && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item.name)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div><button className="button button-dark full" type="button">Continue to checkout <span>→</span></button></>}</aside></div>}
+      {trayOpen && !isOwner && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div><button className="button button-dark full" type="button">Continue to checkout <span>→</span></button></>}</aside></div>}
     </>
   )
 }

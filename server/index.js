@@ -7,6 +7,7 @@ const loginHandler = require('../api/auth/login');
 const sessionHandler = require('../api/auth/session');
 const logoutHandler = require('../api/auth/logout');
 const dashboardHandler = require('../api/admin/dashboard');
+const adminMenuHandler = require('../api/admin/menu');
 const resetPasswordHandler = require('../api/auth/reset-password');
 
 const app = express();
@@ -24,7 +25,7 @@ const supabase = createClient(
 );
 
 app.use(cors({ origin: clientOrigin, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'gigisfoodstall-server' });
@@ -34,6 +35,10 @@ app.post('/api/auth/login', loginHandler);
 app.get('/api/auth/session', sessionHandler);
 app.post('/api/auth/logout', logoutHandler);
 app.get('/api/admin/dashboard', dashboardHandler);
+app.get('/api/admin/menu', adminMenuHandler);
+app.post('/api/admin/menu', adminMenuHandler);
+app.patch('/api/admin/menu', adminMenuHandler);
+app.delete('/api/admin/menu', adminMenuHandler);
 app.post('/api/auth/reset-password', resetPasswordHandler);
 
 app.get('/api/menu', async (req, res, next) => {

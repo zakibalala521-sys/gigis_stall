@@ -16,7 +16,6 @@ module.exports = async function handler(req, res) {
   endpoint.search = new URLSearchParams({
     select: 'product_id,category_id,name,description,unit,price,image,is_available,categories(name)',
     is_archived: 'eq.0',
-    is_available: 'eq.1',
     order: 'name',
   }).toString();
 
