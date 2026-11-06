@@ -120,7 +120,7 @@ module.exports = async function handler(req, res) {
     })
     const verificationResponse = await supabaseRequest(`account_verifications?${verificationQuery}`)
     const verifications = await verificationResponse.json()
-    if (verifications[0] && !verifications[0].verified_at) {
+    if (!verifications[0] || !verifications[0].verified_at) {
       return respondError(res, 403, 'Please verify your email before signing in.', 'email_unverified')
     }
 
