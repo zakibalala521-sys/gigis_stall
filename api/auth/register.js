@@ -7,6 +7,7 @@ const REGISTRATION_WINDOW_MINUTES = 60
 const MAX_EMAIL_ATTEMPTS = 3
 const MAX_IP_ATTEMPTS = 5
 const VERIFICATION_TTL_HOURS = 24
+const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false'
 
 function respond(res, status, body) {
   res.setHeader('Cache-Control', 'no-store')
@@ -110,6 +111,47 @@ module.exports = async function handler(req, res) {
       })
     }
 
+    const passwordHash = await bcrypt.hash(password, 12)
+    if (!REQUIRE_EMAIL_VERIFICATION) {
+      const createdResponse = await supabaseRequest('users?select=user_id', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          full_name: fullName,
+          email,
+          password_hash: passwordHash,
+          role: 'customer',
+          status: 'active',
+        }),
+      })
+      const createdUsers = await createdResponse.json()
+      const user = createdUsers[0]
+      if (!user) throw new Error('The customer account was not created.')
+
+      try {
+        await supabaseRequest('account_verifications?on_conflict=user_id', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ user_id: user.user_id, verified_at: new Date().toISOString() }),
+        })
+      } catch (error) {
+        try {
+          await supabaseRequest(`users?${new URLSearchParams({ user_id: `eq.${user.user_id}` })}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=minimal' },
+          })
+        } catch (cleanupError) {
+          console.error('Could not clean up a customer account without a verification record.', cleanupError)
+        }
+        throw error
+      }
+
+      return respond(res, 201, {
+        success: true,
+        message: 'Account created. You can now sign in.',
+      })
+    }
+
     const token = crypto.randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + VERIFICATION_TTL_HOURS * 60 * 60 * 1000).toISOString()
     let pendingId
@@ -121,7 +163,7 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({
           full_name: fullName,
           email,
-          password_hash: await bcrypt.hash(password, 12),
+          password_hash: passwordHash,
           role: 'customer',
           status: 'active',
           expires_at: expiresAt,

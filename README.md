@@ -47,6 +47,10 @@ environments:
   `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`,
   and enter it directly in Vercel.
 - `APP_BASE_URL`: the app's public URL, such as `https://gigisfoodstall.vercel.app`.
+- `REQUIRE_EMAIL_VERIFICATION`: defaults to `true`. Set it to `false` only for
+  a school/demo deployment that should create customer accounts immediately
+  without sending email. This does not verify that a customer owns the email
+  address.
 - `RESEND_API_KEY`: a server-only API key from Resend for verification emails.
 - `EMAIL_FROM`: a sender address on a domain verified with Resend, for example
   `Gigi's Food House <verify@example.com>`.

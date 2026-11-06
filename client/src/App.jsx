@@ -248,7 +248,7 @@ function App() {
                   {authMode === 'signin' ? 'New to Gigi’s? Create an account' : 'Already have an account? Sign in'}
                 </button>
               </form>
-              {authMode === 'signin' && <p className="auth-note">Sign in after verifying the email address linked to your account.</p>}
+              {authMode === 'signin' && <p className="auth-note">Sign in with the email and password you registered.</p>}
             </div>
           </section>
         ) : view === 'admin' && user?.role === 'owner' ? (
