@@ -1,10 +1,12 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { apiFetch } from './api'
+import { supabase } from './supabase'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
 const peso = (value) => `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const dateTime = (value) => new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 
-function CustomerOrders({ mode = 'active' }) {
+function CustomerOrders({ mode = 'active', userId }) {
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
   const [error, setError] = useState('')
@@ -19,7 +21,7 @@ function CustomerOrders({ mode = 'active' }) {
   const loadOrders = useCallback(async () => {
     try {
       const [ordersResponse, menuResponse] = await Promise.all([
-        fetch(`${apiUrl}/api/orders`, { credentials: 'include' }),
+        apiFetch(`${apiUrl}/api/orders`),
         fetch(`${apiUrl}/api/menu`),
       ])
       const [orderData, menuData] = await Promise.all([ordersResponse.json(), menuResponse.json()])
@@ -38,11 +40,20 @@ function CustomerOrders({ mode = 'active' }) {
   useEffect(() => {
     const initialTimer = window.setTimeout(() => loadOrders(), 0)
     const timer = window.setInterval(() => loadOrders(), 10000)
+    const channel = supabase?.channel(`customer-orders-${userId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        ...(userId ? { filter: `customer_id=eq.${userId}` } : {}),
+      }, () => loadOrders())
+      .subscribe()
     return () => {
       window.clearTimeout(initialTimer)
       window.clearInterval(timer)
+      if (channel) supabase.removeChannel(channel)
     }
-  }, [loadOrders])
+  }, [loadOrders, userId])
 
   const startEditing = (order) => {
     setExpandedOrder(order.order_id)
@@ -74,9 +85,8 @@ function CustomerOrders({ mode = 'active' }) {
     setBusyOrder(orderId)
     setError('')
     try {
-      const response = await fetch(`${apiUrl}/api/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/orders`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'edit',
@@ -100,9 +110,8 @@ function CustomerOrders({ mode = 'active' }) {
     setBusyOrder(orderId)
     setError('')
     try {
-      const response = await fetch(`${apiUrl}/api/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/orders`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId, action: 'cancel' }),
       })

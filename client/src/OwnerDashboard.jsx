@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import OrderManager from './OrderManager'
+import { apiFetch } from './api'
 import './OwnerDashboard.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
 const peso = (value) => `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 async function fetchDashboard() {
-  const response = await fetch(`${apiUrl}/api/admin/dashboard`, { credentials: 'include' })
+  const response = await apiFetch(`${apiUrl}/api/admin/dashboard`)
   const data = await response.json()
   if (!response.ok || !data.success) throw new Error(data.message || 'Could not load the owner dashboard.')
   return data.dashboard

@@ -1,4 +1,4 @@
-const { readSession, supabaseRequest } = require('../../lib/auth')
+const { getAuthenticatedUser, supabaseRequest } = require('../../lib/auth')
 
 const PAGE_SIZE = 500
 
@@ -28,10 +28,11 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const sessionUser = readSession(req)
-    if (!sessionUser) {
-      return res.status(401).json({ success: false, message: 'Sign in to view the dashboard.' })
+    const authResult = await getAuthenticatedUser(req)
+    if (!authResult.user) {
+      return res.status(authResult.status).json({ success: false, message: 'Sign in to view the dashboard.' })
     }
+    const sessionUser = authResult.user
     if (sessionUser.role !== 'owner') {
       return res.status(403).json({ success: false, message: 'Owner access is required.' })
     }

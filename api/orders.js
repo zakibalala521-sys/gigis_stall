@@ -1,4 +1,4 @@
-const { readSession, supabaseRequest } = require('../lib/auth')
+const { getAuthenticatedUser, supabaseRequest } = require('../lib/auth')
 const { createOrder, updatePendingOrder, validateOrderInput } = require('../lib/orders')
 
 function respond(res, status, body) {
@@ -7,18 +7,8 @@ function respond(res, status, body) {
 }
 
 async function getActiveCustomer(req) {
-  const sessionUser = readSession(req)
-  if (!sessionUser) return { user: null, status: 401 }
-  if (sessionUser.role !== 'customer') return { user: null, status: 403 }
-
-  const query = new URLSearchParams({
-    select: 'user_id,role,status',
-    user_id: `eq.${sessionUser.user_id}`,
-    limit: '1',
-  })
-  const response = await supabaseRequest(`users?${query}`)
-  const users = await response.json()
-  const user = users[0]
+  const { user, status } = await getAuthenticatedUser(req)
+  if (!user) return { user: null, status }
   if (!user || user.role !== 'customer' || user.status !== 'active') {
     return { user: null, status: 403 }
   }

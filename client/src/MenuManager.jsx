@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ImagePlus, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { apiFetch } from './api'
 import './MenuManager.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
@@ -35,7 +36,7 @@ async function readImage(file) {
 }
 
 async function requestMenu(options = {}) {
-  const response = await fetch(`${apiUrl}/api/admin/menu`, { credentials: 'include', ...options })
+  const response = await apiFetch(`${apiUrl}/api/admin/menu`, options)
   const data = await response.json()
   if (!response.ok || !data.success) throw new Error(data.message || 'Could not manage the menu.')
   return data

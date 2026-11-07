@@ -9,11 +9,13 @@ First, create the server's local environment file:
 
 ```powershell
 Copy-Item .\server\.env.example .\server\.env
+Copy-Item .\client\.env.example .\client\.env
 ```
 
-Edit `server/.env` and set your Supabase project URL, service-role key, and a
-private `SESSION_SECRET` of at least 32 characters. Keep this file local; it is
-ignored by Git. Never put the service-role key in the client environment.
+Set the project URL and anon key in `client/.env`. In `server/.env`, set the
+project URL, anon key, service-role key, and a private `SESSION_SECRET` of at
+least 32 characters. Keep these files local; they are ignored by Git. Never put
+the service-role key in the client environment.
 
 Then start the API and client together from the project root:
 
@@ -36,24 +38,19 @@ these Environment Variables for the Production (and Preview, if needed)
 environments:
 
 - `SUPABASE_URL`: the Supabase project URL.
+- `SUPABASE_ANON_KEY`: the Supabase anon/publishable key used by the API to
+  validate Supabase Auth access tokens.
 - `SUPABASE_SERVICE_ROLE_KEY`: the service-role key, stored only in Vercel
-  server-side environment variables. The API returns only public menu fields.
-  Alternatively, use `SUPABASE_ANON_KEY` if the database grants anonymous
-  read access to the menu tables.
+  server-side environment variables. Server-side profile linking and database
+  operations require this key; never expose it in the client.
+- `VITE_SUPABASE_URL`: the same Supabase project URL, exposed to the client.
+- `VITE_SUPABASE_ANON_KEY`: the anon/publishable key, exposed to the client.
+  Never use the service-role key for a `VITE_` variable.
 - `SUPABASE_STORAGE_BUCKET`: optional Supabase Storage bucket name for menu
   images; defaults to `menu-images`.
-- `SESSION_SECRET`: a private random secret of at least 32 characters, used to
-  sign HTTP-only login session cookies. Generate one locally, for example with
-  `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`,
-  and enter it directly in Vercel.
-- `APP_BASE_URL`: the app's public URL, such as `https://gigisfoodstall.vercel.app`.
-- `REQUIRE_EMAIL_VERIFICATION`: defaults to `true`. Set it to `false` only for
-  a school/demo deployment that should create customer accounts immediately
-  without sending email. This does not verify that a customer owns the email
-  address.
-- `RESEND_API_KEY`: a server-only API key from Resend for verification emails.
-- `EMAIL_FROM`: a sender address on a domain verified with Resend, for example
-  `Gigi's Food House <verify@example.com>`.
+- `SESSION_SECRET`, `APP_BASE_URL`, `REQUIRE_EMAIL_VERIFICATION`,
+  `RESEND_API_KEY`, and `EMAIL_FROM` are only used by the legacy cookie-auth
+  endpoints; the React application now uses Supabase Auth.
 
 After an owner account signs in, the app opens an owner-only dashboard with
 sales totals and order management. Dashboard data is served by
@@ -70,18 +67,19 @@ the tray or ordering controls.
 
 Do not set `VITE_API_URL` for the Vercel deployment; the client calls the
 same-origin API routes. After adding or changing variables, redeploy the
-project. Sign-in reads the existing `users`, `account_verifications`,
-`pending_accounts`, and `auth_attempts` tables in Supabase; it does not use
-Supabase Auth.
+project. Configure Supabase Auth email templates to send the six-digit
+`{{ .Token }}` code for both signup confirmation and password recovery, and
+configure the project's custom SMTP provider in Supabase Auth. Enable the
+Email provider's **Confirm email** setting so signup requires OTP verification.
+The client
+supports signup OTP, resend countdown, password login, and recovery OTP.
+Guest carts stay in browser storage and are available after sign-in.
 
-Customers can create accounts from the sign-in form using their full name,
-email, and password. Sign-up uses the existing pending-account tables and
-requires email verification before sign-in. Configure and verify a sender
-domain with Resend, then set the three email environment variables above in
-Vercel before enabling sign-up. The app expects the existing
-`pending_accounts`, `pending_account_tokens`, and `account_verifications`
-tables from `GIGIS-FOOD-STALL/supabase_schema.sql`; do not rerun that script on
-an existing database because it drops and recreates application tables.
+The server links a confirmed Supabase Auth user to an existing `public.users`
+profile by verified email, preserving the existing role (including owner).
+Otherwise it creates an active customer profile. Create/confirm the owner's
+Supabase Auth account with the same email as the existing owner profile. Roles
+are never accepted from client metadata.
 
 ### Orders
 
@@ -99,7 +97,13 @@ to add the sole payment method (`Cash on Pick-up`) and the transactional
 customer pending-order edit function. It also makes Take-out the only order
 type. The dashboard and customer active-order views show only pending or
 ready-to-pick-up orders; finalized orders have separate history views and
-refresh automatically every 10 seconds.
+refresh through Supabase Realtime with a 10-second polling fallback.
+
+After both order migrations, apply `supabase_auth_realtime_migration.sql` once.
+It adds the Auth UUID mapping to customer profiles, permits null legacy
+password hashes for newly provisioned Supabase Auth customers, and enables
+authorized order reads and Realtime publication. Do not rerun the base schema
+on an existing database because it drops and recreates application tables.
 
 ### Temporary password reset
 

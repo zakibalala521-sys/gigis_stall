@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Plus, Trash2, X } from 'lucide-react'
+import { apiFetch } from './api'
+import { supabase } from './supabase'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
 const STATUSES = ['pending', 'ready to pick up', 'picked up', 'canceled']
@@ -23,7 +25,7 @@ function OrderManager({ mode = 'active' }) {
   const loadOrders = useCallback(async () => {
     try {
       const [ordersResponse, menuResponse] = await Promise.all([
-        fetch(`${apiUrl}/api/admin/orders`, { credentials: 'include' }),
+        apiFetch(`${apiUrl}/api/admin/orders`),
         fetch(`${apiUrl}/api/menu`),
       ])
       const [orderData, menuData] = await Promise.all([ordersResponse.json(), menuResponse.json()])
@@ -43,9 +45,17 @@ function OrderManager({ mode = 'active' }) {
   useEffect(() => {
     const initialTimer = window.setTimeout(() => loadOrders(), 0)
     const timer = window.setInterval(() => loadOrders(), 10000)
+    const channel = supabase?.channel('admin-orders')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+      }, () => loadOrders())
+      .subscribe()
     return () => {
       window.clearTimeout(initialTimer)
       window.clearInterval(timer)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [loadOrders])
 
@@ -68,9 +78,8 @@ function OrderManager({ mode = 'active' }) {
     setSaving(true)
     setError('')
     try {
-      const response = await fetch(`${apiUrl}/api/admin/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/admin/orders`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_id: Number(customerId),
@@ -94,9 +103,8 @@ function OrderManager({ mode = 'active' }) {
   const changeStatus = async (orderId, status) => {
     setError('')
     try {
-      const response = await fetch(`${apiUrl}/api/admin/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/admin/orders`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId, status }),
       })
@@ -112,9 +120,8 @@ function OrderManager({ mode = 'active' }) {
     if (!window.confirm(`Delete active order #${orderId}?`)) return
     setError('')
     try {
-      const response = await fetch(`${apiUrl}/api/admin/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/admin/orders`, {
         method: 'DELETE',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId }),
       })

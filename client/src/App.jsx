@@ -3,6 +3,8 @@ import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
 import MenuManager from './MenuManager'
 import OwnerDashboard from './OwnerDashboard'
 import CustomerOrders from './CustomerOrders'
+import { apiFetch } from './api'
+import { supabase } from './supabase'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
@@ -47,19 +49,46 @@ function App() {
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
+  const [otpToken, setOtpToken] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [authMode, setAuthMode] = useState('signin')
-  const [authError, setAuthError] = useState('')
+  const [otpPurpose, setOtpPurpose] = useState(null)
+  const [resendSeconds, setResendSeconds] = useState(0)
+  const [authError, setAuthError] = useState(supabase ? '' : 'Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
   const [authNotice, setAuthNotice] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
-  const [sessionChecked, setSessionChecked] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(!supabase)
   const [catalogVersion, setCatalogVersion] = useState(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [orderSubmitting, setOrderSubmitting] = useState(false)
 
+  const syncProfile = async (session) => {
+    if (!session?.access_token) {
+      setUser(null)
+      return null
+    }
+    const response = await fetch(`${apiUrl}/api/auth/session`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+    })
+    const data = await response.json()
+    if (!response.ok || !data.success || !data.authenticated) {
+      throw new Error(data.message || 'Could not load your account profile.')
+    }
+    setUser(data.user)
+    if (data.user.role === 'owner') setView('admin')
+    return data.user
+  }
+
   useEffect(() => {
     localStorage.setItem('gigi-cart', JSON.stringify(cart))
   }, [cart])
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return undefined
+    const timer = window.setInterval(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000)
+    return () => window.clearInterval(timer)
+  }, [resendSeconds])
 
   useEffect(() => {
     fetch(`${apiUrl}/api/menu`)
@@ -81,51 +110,39 @@ function App() {
 
   useEffect(() => {
     let active = true
-    const initialize = async () => {
-      try {
-        const response = await fetch(`${apiUrl}/api/auth/session`, { credentials: 'include' })
-        const data = await response.json()
-        if (!response.ok || !data.success) throw new Error(data.message || 'Could not verify the sign-in session.')
-        if (data.authenticated) {
-          if (active) {
-            setUser(data.user)
-            if (data.user.role === 'owner') setView('admin')
-          }
-        }
-      } catch (requestError) {
-        console.error(requestError)
-      }
+    if (!supabase) return undefined
 
-      const token = new URLSearchParams(window.location.hash.slice(1)).get('verify')
-      if (token) {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
-        if (active) {
-          setView('auth')
-          setAuthMode('signin')
-          setAuthNotice('Verifying your email...')
-          setAuthError('')
-        }
-        try {
-          const response = await fetch(`${apiUrl}/api/auth/verify-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token }),
-          })
-          const data = await response.json()
-          if (!response.ok || !data.success) throw new Error(data.message || 'Could not verify your email.')
-          if (active) setAuthNotice(data.message)
-        } catch (requestError) {
-          if (active) {
-            setAuthNotice('')
-            setAuthError(requestError.message)
-          }
-        }
+    const syncSession = async (session) => {
+      if (!session) {
+        if (active) setUser(null)
+        return
       }
-      if (active) setSessionChecked(true)
+      try {
+        await syncProfile(session)
+      } catch (requestError) {
+        if (active) setAuthError(requestError.message)
+      }
     }
 
-    initialize()
-    return () => { active = false }
+    supabase.auth.getSession()
+      .then(({ data, error: sessionError }) => {
+        if (sessionError) throw sessionError
+        return syncSession(data.session)
+      })
+      .catch((requestError) => { if (active) setAuthError(requestError.message) })
+      .finally(() => { if (active) setSessionChecked(true) })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        return
+      }
+      if (session) window.setTimeout(() => { if (active) syncSession(session) }, 0)
+    })
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const categories = useMemo(() => [
@@ -161,19 +178,17 @@ function App() {
     setAuthNotice('')
 
     try {
-      const response = await fetch(`${apiUrl}/api/auth/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
       })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.message || 'Could not sign in.')
-
-      setUser(data.user)
+      if (signInError) throw signInError
+      const profile = await syncProfile(data.session)
+      if (!profile) throw new Error('Could not load your account profile.')
       setPassword('')
-      setView(data.user.role === 'owner' ? 'admin' : 'catalog')
-      if (data.user.role === 'customer' && cart.length > 0) setTrayOpen(true)
+      setView(profile.role === 'owner' ? 'admin' : 'catalog')
+      if (profile.role === 'customer' && cart.length > 0) setTrayOpen(true)
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -187,24 +202,153 @@ function App() {
     setAuthError('')
     setAuthNotice('')
 
+    if (!fullName.trim()) {
+      setAuthError('Enter your full name.')
+      setAuthLoading(false)
+      return
+    }
     if (password !== passwordConfirmation) {
       setAuthError('The passwords do not match.')
       setAuthLoading(false)
       return
     }
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      setAuthError('Use at least 8 characters, including uppercase, lowercase, a number, and a symbol.')
+      setAuthLoading(false)
+      return
+    }
 
     try {
-      const response = await fetch(`${apiUrl}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: fullName, email, password }),
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { data, error: signupError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { full_name: fullName.trim() } },
       })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.message || 'Could not create your account.')
+      if (signupError) throw signupError
+      setPassword('')
+      setPasswordConfirmation('')
+      if (data.session) {
+        await syncProfile(data.session)
+        setAuthMode('signin')
+        setView('catalog')
+        if (cart.length > 0) setTrayOpen(true)
+      } else {
+        setOtpPurpose('signup')
+        setOtpToken('')
+        setResendSeconds(60)
+        setAuthMode('otp')
+        setAuthNotice(`Enter the 6-digit code sent to ${email.trim()}.`)
+      }
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const requestPasswordReset = async (event) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+    setAuthNotice('')
+    try {
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim())
+      if (resetError) throw resetError
+      setOtpPurpose('recovery')
+      setOtpToken('')
+      setResendSeconds(60)
+      setAuthMode('otp')
+      setAuthNotice(`Enter the 6-digit recovery code sent to ${email.trim()}.`)
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const verifyOtp = async (event) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      if (!supabase || !otpPurpose) throw new Error('The verification flow is unavailable. Please start again.')
+      const { data, error: verificationError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otpToken.trim(),
+        type: otpPurpose,
+      })
+      if (verificationError) throw verificationError
+      if (!data.session) throw new Error('Code verified, but no authenticated session was returned.')
+      if (otpPurpose === 'recovery') {
+        setAuthMode('new-password')
+        setOtpPurpose(null)
+        setAuthNotice('Code verified. Choose a new password.')
+      } else {
+        const profile = await syncProfile(data.session)
+        if (!profile) throw new Error('Could not load your account profile.')
+        setAuthMode('signin')
+        setOtpPurpose(null)
+        setAuthNotice('Your email is verified and your account is ready.')
+        setView('catalog')
+        if (cart.length > 0) setTrayOpen(true)
+      }
+      setOtpToken('')
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const resendOtp = async () => {
+    if (resendSeconds > 0 || !otpPurpose) return
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { error: resendError } = otpPurpose === 'signup'
+        ? await supabase.auth.resend({ type: 'signup', email: email.trim() })
+        : await supabase.auth.resetPasswordForEmail(email.trim())
+      if (resendError) throw resendError
+      setResendSeconds(60)
+      setAuthNotice(`A new 6-digit code was sent to ${email.trim()}.`)
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const updatePassword = async (event) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+    setAuthNotice('')
+    if (password !== passwordConfirmation) {
+      setAuthError('The passwords do not match.')
+      setAuthLoading(false)
+      return
+    }
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      setAuthError('Use at least 8 characters, including uppercase, lowercase, a number, and a symbol.')
+      setAuthLoading(false)
+      return
+    }
+    try {
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const profile = await syncProfile(data.session)
+      if (!profile) throw new Error('Your password changed, but the account profile could not be loaded.')
       setPassword('')
       setPasswordConfirmation('')
       setAuthMode('signin')
-      setAuthNotice(data.message)
+      setAuthNotice('Your password has been updated.')
+      setView(profile.role === 'owner' ? 'admin' : 'catalog')
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -214,12 +358,12 @@ function App() {
 
   const signOut = async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.message || 'Could not sign out.')
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) throw signOutError
       setUser(null)
-      setCart([])
       setTrayOpen(false)
+      setView('catalog')
     } catch (requestError) {
       setAuthError(requestError.message)
       setView('auth')
@@ -240,9 +384,8 @@ function App() {
     setOrderSubmitting(true)
     setAuthError('')
     try {
-      const response = await fetch(`${apiUrl}/api/orders`, {
+      const response = await apiFetch(`${apiUrl}/api/orders`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: 'take-out',
@@ -280,11 +423,40 @@ function App() {
         {view === 'auth' ? (
           <section className="auth-page">
             <div className="auth-card">
-              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : 'Join the canteen'}</p>
-              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : <>Create your<br /><i>account.</i></>}</h1>
-              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : 'Create a customer account to get started.'}</p>
+              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : authMode === 'otp' ? 'Email verification' : authMode === 'forgot' ? 'Account recovery' : 'Choose a new password'}</p>
+              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : authMode === 'otp' ? <>Check your<br /><i>email.</i></> : authMode === 'forgot' ? <>Reset your<br /><i>password.</i></> : <>New<br /><i>password.</i></>}</h1>
+              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : authMode === 'otp' ? 'Enter the 6-digit code we sent you.' : authMode === 'forgot' ? 'Enter your email and we’ll send a recovery code.' : 'Choose a strong password for your account.'}</p>
               {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
-              <form className="auth-form" onSubmit={authMode === 'signin' ? signIn : register}>
+              {authMode === 'otp' ? (
+                <form className="auth-form" onSubmit={verifyOtp}>
+                  <label htmlFor="verification-code">6-digit code</label>
+                  <input id="verification-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" value={otpToken} onChange={(event) => setOtpToken(event.target.value.replace(/\D/g, '').slice(0, 6))} required aria-label="6-digit verification code" />
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading || otpToken.length !== 6}>{authLoading ? 'Verifying...' : 'Verify code'} <span>→</span></button>
+                  <button className="auth-mode-toggle" type="button" disabled={authLoading || resendSeconds > 0} onClick={resendOtp}>
+                    {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+                  </button>
+                </form>
+              ) : authMode === 'forgot' ? (
+                <form className="auth-form" onSubmit={requestPasswordReset}>
+                  <label htmlFor="recovery-email">Email</label>
+                  <input id="recovery-email" type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength="150" required autoComplete="email" />
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Sending code...' : 'Send recovery code'} <span>→</span></button>
+                  <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode('signin'); setAuthError(''); setAuthNotice('') }}>Back to sign in</button>
+                </form>
+              ) : authMode === 'new-password' ? (
+                <form className="auth-form" onSubmit={updatePassword}>
+                  <label htmlFor="new-password">New password</label>
+                  <input id="new-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="new-password" />
+                  <p className="password-requirements">At least 8 characters, including uppercase, lowercase, a number, and a symbol.</p>
+                  <label htmlFor="confirm-new-password">Confirm new password</label>
+                  <input id="confirm-new-password" type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required autoComplete="new-password" />
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Updating password...' : 'Update password'} <span>→</span></button>
+                </form>
+              ) : (
+                <form className="auth-form" onSubmit={authMode === 'signin' ? signIn : register}>
                 {authMode === 'signup' && <>
                   <label htmlFor="register-name">Full name</label>
                   <input id="register-name" type="text" name="full_name" value={fullName} onChange={(event) => setFullName(event.target.value)} maxLength="100" required autoComplete="name" />
@@ -305,10 +477,12 @@ function App() {
                 </>}
                 {authError && <p className="auth-error" role="alert">{authError}</p>}
                 <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? (authMode === 'signin' ? 'Signing in...' : 'Creating account...') : (authMode === 'signin' ? 'Sign in' : 'Create account')} <span>→</span></button>
+                {authMode === 'signin' && <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthNotice('') }}>Forgot password?</button>}
                 <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode(authMode === 'signin' ? 'signup' : 'signin'); setAuthError(''); setAuthNotice('') }}>
                   {authMode === 'signin' ? 'New to Gigi’s? Create an account' : 'Already have an account? Sign in'}
                 </button>
               </form>
+              )}
               {authMode === 'signin' && <p className="auth-note">Sign in with the email and password you registered.</p>}
             </div>
           </section>
@@ -319,9 +493,9 @@ function App() {
         ) : view === 'manage-menu' && user?.role === 'owner' ? (
           <MenuManager onMenuChanged={() => setCatalogVersion((version) => version + 1)} />
         ) : view === 'customer-orders' && user?.role === 'customer' ? (
-          <CustomerOrders mode="active" />
+          <CustomerOrders mode="active" userId={user.user_id} />
         ) : view === 'customer-history' && user?.role === 'customer' ? (
-          <CustomerOrders mode="history" />
+          <CustomerOrders mode="history" userId={user.user_id} />
         ) : (
           <>
         <section className="hero">

@@ -18,15 +18,13 @@ const app = express();
 const port = Number(process.env.PORT || 3001);
 const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
-if (!process.env.SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
-  throw new Error('SUPABASE_URL and either SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY are required.');
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
 }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json({ limit: '3mb' }));
