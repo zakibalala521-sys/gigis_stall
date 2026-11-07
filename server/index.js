@@ -10,6 +10,8 @@ const sessionHandler = require('../api/auth/session');
 const logoutHandler = require('../api/auth/logout');
 const dashboardHandler = require('../api/admin/dashboard');
 const adminMenuHandler = require('../api/admin/menu');
+const ordersHandler = require('../api/orders');
+const adminOrdersHandler = require('../api/admin/orders');
 const resetPasswordHandler = require('../api/auth/reset-password');
 
 const app = express();
@@ -43,6 +45,13 @@ app.get('/api/admin/menu', adminMenuHandler);
 app.post('/api/admin/menu', adminMenuHandler);
 app.patch('/api/admin/menu', adminMenuHandler);
 app.delete('/api/admin/menu', adminMenuHandler);
+app.get('/api/orders', ordersHandler);
+app.post('/api/orders', ordersHandler);
+app.patch('/api/orders', ordersHandler);
+app.get('/api/admin/orders', adminOrdersHandler);
+app.post('/api/admin/orders', adminOrdersHandler);
+app.patch('/api/admin/orders', adminOrdersHandler);
+app.delete('/api/admin/orders', adminOrdersHandler);
 app.post('/api/auth/reset-password', resetPasswordHandler);
 
 app.get('/api/menu', async (req, res, next) => {

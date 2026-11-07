@@ -60,12 +60,12 @@ module.exports = async function handler(req, res) {
       throw new Error('Could not count pending vendor accounts.')
     }
 
-    const activeOrders = orders.filter((order) => order.status !== 'cancelled')
-    const openOrders = orders.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status))
-    const todaySales = activeOrders
+    const successfulOrders = orders.filter((order) => order.status === 'picked up')
+    const openOrders = orders.filter((order) => ['pending', 'ready to pick up'].includes(order.status))
+    const todaySales = successfulOrders
       .filter((order) => order.created_at.slice(0, 10) === today)
       .reduce((total, order) => total + Number(order.total_amount), 0)
-    const totalSales = activeOrders.reduce((total, order) => total + Number(order.total_amount), 0)
+    const totalSales = successfulOrders.reduce((total, order) => total + Number(order.total_amount), 0)
 
     return res.status(200).json({
       success: true,

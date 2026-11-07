@@ -56,7 +56,7 @@ environments:
   `Gigi's Food House <verify@example.com>`.
 
 After an owner account signs in, the app opens an owner-only dashboard with
-sales totals and recent orders. Dashboard data is served by
+sales totals and order management. Dashboard data is served by
 `/api/admin/dashboard` and requires an active owner account.
 
 The owner-only **Menu manager** supports adding, editing, removing, restoring,
@@ -82,6 +82,17 @@ Vercel before enabling sign-up. The app expects the existing
 `pending_accounts`, `pending_account_tokens`, and `account_verifications`
 tables from `GIGIS-FOOD-STALL/supabase_schema.sql`; do not rerun that script on
 an existing database because it drops and recreates application tables.
+
+### Orders
+
+Apply `supabase_order_workflow_migration.sql` once in the Supabase SQL Editor
+before deploying the ordering workflow. It maps legacy order statuses to
+`pending`, `ready to pick up`, `picked up`, and `canceled`, and creates a
+finalized-order history snapshot table. Do not rerun the base schema on an
+existing database. Guests can build a browser-local cart; signing in returns
+them to that cart. Customers can review their chronologically sorted orders
+and cancel only pending orders. Owners can create, view, update status, and
+delete orders; finalized history remains available after order deletion.
 
 ### Temporary password reset
 

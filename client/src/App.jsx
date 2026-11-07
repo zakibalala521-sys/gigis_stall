@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
 import MenuManager from './MenuManager'
 import OwnerDashboard from './OwnerDashboard'
+import CustomerOrders from './CustomerOrders'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
@@ -30,7 +31,14 @@ function App() {
   const [products, setProducts] = useState([])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const [cart, setCart] = useState([])
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('gigi-cart') || '[]')
+      return Array.isArray(saved) ? saved.filter((item) => Number.isInteger(item.product_id) && Number.isInteger(item.quantity) && item.quantity > 0) : []
+    } catch {
+      return []
+    }
+  })
   const [error, setError] = useState('')
   const [trayOpen, setTrayOpen] = useState(false)
   const [view, setView] = useState('catalog')
@@ -46,6 +54,13 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
   const [catalogVersion, setCatalogVersion] = useState(0)
+  const [orderType, setOrderType] = useState('take-out')
+  const [orderNotes, setOrderNotes] = useState('')
+  const [orderSubmitting, setOrderSubmitting] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('gigi-cart', JSON.stringify(cart))
+  }, [cart])
 
   useEffect(() => {
     fetch(`${apiUrl}/api/menu`)
@@ -54,7 +69,14 @@ function App() {
         if (!response.ok || !data.success) throw new Error(data.message || 'Could not load the menu.')
         return data
       })
-      .then((data) => setProducts(data.products || []))
+      .then((data) => {
+        const menu = data.products || []
+        const currentProducts = new Map(menu.map((product) => [product.product_id, product]))
+        setProducts(menu)
+        setCart((current) => current.map((item) => currentProducts.has(item.product_id)
+          ? { ...currentProducts.get(item.product_id), quantity: item.quantity }
+          : item))
+      })
       .catch((requestError) => setError(requestError.message))
   }, [catalogVersion])
 
@@ -120,7 +142,7 @@ function App() {
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
   const cartTotal = cart.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
-  const isOwner = user?.role === 'owner'
+  const canOrder = !user || user.role === 'customer'
 
   const updateCart = (product, change) => {
     setCart((current) => {
@@ -152,6 +174,7 @@ function App() {
       setUser(data.user)
       setPassword('')
       setView(data.user.role === 'owner' ? 'admin' : 'catalog')
+      if (data.user.role === 'customer' && cart.length > 0) setTrayOpen(true)
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -196,9 +219,48 @@ function App() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.message || 'Could not sign out.')
       setUser(null)
+      setCart([])
+      setTrayOpen(false)
     } catch (requestError) {
       setAuthError(requestError.message)
       setView('auth')
+    }
+  }
+
+  const placeOrder = async () => {
+    if (!user || user.role !== 'customer') {
+      setAuthMode('signin')
+      setAuthError('')
+      setAuthNotice('Sign in or create an account to place your order. Your cart will be saved.')
+      setView('auth')
+      setTrayOpen(false)
+      return
+    }
+    if (cart.length === 0) return
+
+    setOrderSubmitting(true)
+    setAuthError('')
+    try {
+      const response = await fetch(`${apiUrl}/api/orders`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_type: orderType,
+          notes: orderNotes,
+          items: cart.map((item) => ({ product_id: item.product_id, quantity: item.quantity })),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.message || 'Could not place your order.')
+      setCart([])
+      setOrderNotes('')
+      setTrayOpen(false)
+      setView('customer-orders')
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setOrderSubmitting(false)
     }
   }
 
@@ -208,8 +270,8 @@ function App() {
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
           <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setView('auth') }}>Sign in</button>}
-          {sessionChecked && !isOwner && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
+          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My orders</button>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setView('auth') }}>Sign in</button>}
+          {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
           </button>}
         </nav>
@@ -255,6 +317,8 @@ function App() {
           <OwnerDashboard />
         ) : view === 'manage-menu' && user?.role === 'owner' ? (
           <MenuManager onMenuChanged={() => setCatalogVersion((version) => version + 1)} />
+        ) : view === 'customer-orders' && user?.role === 'customer' ? (
+          <CustomerOrders />
         ) : (
           <>
         <section className="hero">
@@ -273,6 +337,7 @@ function App() {
                   <img src={imageFor(product)} alt="" />
                   <span>{product.name}</span>
                   <strong>₱{Number(product.price).toFixed(0)}</strong>
+                  {sessionChecked && canOrder && product.is_available === 1 && <button className="banner-add" type="button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={16} /></button>}
                 </li>
               ))}
             </ul>
@@ -295,7 +360,7 @@ function App() {
             {visibleProducts.map((product) => (
               <article className="product-card" key={product.product_id}>
                 <div className="product-image"><img src={imageFor(product)} alt={product.name} /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}</div>
-                <div className="product-info"><div><h3>{product.name}</h3><p>{product.description || 'Made fresh for you.'}</p></div><div className="product-buy"><strong>₱{Number(product.price).toFixed(2)}</strong>{sessionChecked && !isOwner && product.is_available === 1 && <button className="add-button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={18} /></button>}</div></div>
+                <div className="product-info"><div><h3>{product.name}</h3><p>{product.description || 'Made fresh for you.'}</p></div><div className="product-buy"><strong>₱{Number(product.price).toFixed(2)}</strong>{sessionChecked && canOrder && product.is_available === 1 && <button className="add-button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={18} /></button>}</div></div>
               </article>
             ))}
           </div>
@@ -306,7 +371,7 @@ function App() {
 
       <footer className="site-footer"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
 
-      {trayOpen && !isOwner && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div><button className="button button-dark full" type="button">Continue to checkout <span>→</span></button></>}</aside></div>}
+      {trayOpen && canOrder && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div>{user?.role === 'customer' && <div className="checkout-fields"><label>Order type<select value={orderType} onChange={(event) => setOrderType(event.target.value)}><option value="take-out">Take-out</option><option value="dine-in">Dine-in</option><option value="delivery">Delivery</option></select></label><label>Notes<input maxLength="255" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} placeholder="Optional order note" /></label></div>}{authError && <p className="auth-error" role="alert">{authError}</p>}<button className="button button-dark full checkout-button" type="button" disabled={orderSubmitting} onClick={placeOrder}>{orderSubmitting ? 'Placing order…' : user?.role === 'customer' ? 'Place order' : 'Sign in to checkout'} <span>→</span></button></>}</aside></div>}
     </>
   )
 }

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import OrderManager from './OrderManager'
 import './OwnerDashboard.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
 const peso = (value) => `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const dateTime = (value) => new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 
 async function fetchDashboard() {
   const response = await fetch(`${apiUrl}/api/admin/dashboard`, { credentials: 'include' })
@@ -67,34 +67,7 @@ function OwnerDashboard() {
             <article><span>Pending vendors</span><strong>{dashboard.pending_vendors}</strong></article>
           </div>
 
-          <section className="dashboard-orders">
-            <div className="dashboard-section-heading">
-              <div><p className="eyebrow">Latest activity</p><h2>Recent orders</h2></div>
-              <span>Showing {dashboard.recent_orders.length} of {dashboard.total_orders}</span>
-            </div>
-            {dashboard.recent_orders.length === 0 ? <p className="empty-state">There are no orders yet.</p> : (
-              <div className="dashboard-table-wrap">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr><th>Order</th><th>Customer</th><th>Items</th><th>Type</th><th>Status</th><th>Total</th><th>Placed</th></tr>
-                  </thead>
-                  <tbody>
-                    {dashboard.recent_orders.map((order) => (
-                      <tr key={order.order_id}>
-                        <td>#{order.order_id}</td>
-                        <td>{order.customer_name || 'Customer'}</td>
-                        <td>{order.item_count}</td>
-                        <td>{order.order_type}</td>
-                        <td><span className={`order-status status-${order.status}`}>{order.status}</span></td>
-                        <td>{peso(order.total_amount)}</td>
-                        <td>{dateTime(order.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          <OrderManager />
         </>
       )}
     </section>
