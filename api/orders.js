@@ -1,5 +1,5 @@
 const { readSession, supabaseRequest } = require('../lib/auth')
-const { createOrder, validateOrderInput } = require('../lib/orders')
+const { createOrder, updatePendingOrder, validateOrderInput } = require('../lib/orders')
 
 function respond(res, status, body) {
   res.setHeader('Cache-Control', 'no-store')
@@ -40,6 +40,7 @@ function formatOrder(order) {
     customer_id: order.customer_id,
     customer_name: order.users?.full_name || order.customer_name || 'Customer',
     order_type: order.order_type,
+    payment_method: order.payment_method || 'Cash on Pick-up',
     status: order.status,
     notes: order.notes,
     created_at: order.created_at,
@@ -67,12 +68,12 @@ async function fetchAll(path, params) {
 async function getCustomerOrders(customerId) {
   const [orders, history] = await Promise.all([
     fetchAll('orders', {
-      select: 'order_id,customer_id,order_type,status,notes,created_at,updated_at,users!orders_customer_id_fkey(full_name),order_items(order_item_id,product_id,quantity,unit_price,products(name,image))',
+      select: 'order_id,customer_id,order_type,payment_method,status,notes,created_at,updated_at,users!orders_customer_id_fkey(full_name),order_items(order_item_id,product_id,quantity,unit_price,products(name,image))',
       customer_id: `eq.${customerId}`,
       order: 'created_at.desc',
     }),
     fetchAll('customer_order_history', {
-      select: 'order_id,customer_id,customer_name,order_type,order_status,notes,placed_at,finalized_at,total_amount,items,outcome',
+      select: 'order_id,customer_id,customer_name,order_type,payment_method,order_status,notes,placed_at,finalized_at,total_amount,items,outcome',
       customer_id: `eq.${customerId}`,
       order: 'placed_at.desc',
     }),
@@ -86,6 +87,7 @@ async function getCustomerOrders(customerId) {
       customer_id: record.customer_id,
       customer_name: record.customer_name,
       order_type: record.order_type,
+      payment_method: record.payment_method || 'Cash on Pick-up',
       status: record.order_status,
       notes: record.notes,
       created_at: record.placed_at,
@@ -116,7 +118,11 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET') {
       const orders = await getCustomerOrders(result.user.user_id)
-      return respond(res, 200, { success: true, orders })
+      return respond(res, 200, {
+        success: true,
+        active_orders: orders.filter((order) => !order.archived && ['pending', 'ready to pick up'].includes(order.status)),
+        history: orders.filter((order) => order.archived || ['picked up', 'canceled'].includes(order.status)),
+      })
     }
 
     if (req.method === 'POST') {
@@ -127,8 +133,17 @@ module.exports = async function handler(req, res) {
     }
 
     const orderId = Number(req.body?.order_id)
-    if (!Number.isInteger(orderId) || orderId < 1 || req.body?.action !== 'cancel') {
+    if (!Number.isInteger(orderId) || orderId < 1) {
       return respond(res, 400, { success: false, message: 'Choose a valid pending order to cancel.' })
+    }
+    if (req.body?.action === 'edit') {
+      const validation = validateOrderInput(req.body)
+      if (validation.error) return respond(res, 400, { success: false, message: validation.error })
+      await updatePendingOrder(orderId, result.user.user_id, validation.values)
+      return respond(res, 200, { success: true, message: 'Your pending order was updated.' })
+    }
+    if (req.body?.action !== 'cancel') {
+      return respond(res, 400, { success: false, message: 'Choose edit or cancel for a pending order.' })
     }
     const query = new URLSearchParams({
       order_id: `eq.${orderId}`,
@@ -148,6 +163,7 @@ module.exports = async function handler(req, res) {
     return respond(res, 200, { success: true, message: 'Your order was canceled.' })
   } catch (error) {
     console.error('Customer order request failed.', error)
+    if (error.status === 400 && req.body?.action === 'edit') return respond(res, 409, { success: false, message: 'Only your pending order can be edited, and all items must still be available.' })
     if (error.status === 400) return respond(res, 409, { success: false, message: 'The menu changed or an item is no longer available. Refresh your cart and try again.' })
     if (error.status === 409) return respond(res, 409, { success: false, message: error.message })
     return respond(res, 500, { success: false, message: 'Could not complete the order request.' })

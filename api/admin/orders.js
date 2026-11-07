@@ -23,6 +23,7 @@ function formatOrder(order) {
     customer_id: order.customer_id,
     customer_name: order.users?.full_name || order.customer_name || 'Customer',
     order_type: order.order_type,
+    payment_method: order.payment_method || 'Cash on Pick-up',
     status: order.status,
     notes: order.notes,
     created_at: order.created_at,
@@ -61,11 +62,11 @@ async function requireOwner(req, res) {
 async function getAllOrders() {
   const [orders, history, customers] = await Promise.all([
     fetchAll('orders', {
-      select: 'order_id,customer_id,order_type,status,notes,created_at,updated_at,users!orders_customer_id_fkey(full_name),order_items(order_item_id,product_id,quantity,unit_price,products(name,image))',
+      select: 'order_id,customer_id,order_type,payment_method,status,notes,created_at,updated_at,users!orders_customer_id_fkey(full_name),order_items(order_item_id,product_id,quantity,unit_price,products(name,image))',
       order: 'created_at.desc',
     }),
     fetchAll('customer_order_history', {
-      select: 'order_id,customer_id,customer_name,order_type,order_status,notes,placed_at,finalized_at,total_amount,items,outcome',
+      select: 'order_id,customer_id,customer_name,order_type,payment_method,order_status,notes,placed_at,finalized_at,total_amount,items,outcome',
       order: 'placed_at.desc',
     }),
     fetchAll('users', {
@@ -83,6 +84,7 @@ async function getAllOrders() {
       customer_id: record.customer_id,
       customer_name: record.customer_name,
       order_type: record.order_type,
+      payment_method: record.payment_method || 'Cash on Pick-up',
       status: record.order_status,
       notes: record.notes,
       created_at: record.placed_at,
@@ -92,7 +94,10 @@ async function getAllOrders() {
       archived: true,
     }))
   return {
-    orders: [...orders.map(formatOrder), ...archived.map(formatOrder)]
+    active_orders: orders.map(formatOrder)
+      .filter((order) => ['pending', 'ready to pick up'].includes(order.status))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    history: [...orders.map(formatOrder).filter((order) => ['picked up', 'canceled'].includes(order.status)), ...archived.map(formatOrder)]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     customers,
   }
@@ -150,13 +155,18 @@ module.exports = async function handler(req, res) {
       if (!ORDER_STATUSES.has(status)) {
         return respond(res, 400, { success: false, message: 'Choose pending, ready to pick up, picked up, or canceled.' })
       }
-      const response = await supabaseRequest(`orders?${orderQuery}`, {
+      const activeOrderQuery = new URLSearchParams({
+        order_id: `eq.${orderId}`,
+        status: 'in.("pending","ready to pick up")',
+        select: 'order_id',
+      })
+      const response = await supabaseRequest(`orders?${activeOrderQuery}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ status }),
       })
       const updated = await response.json()
-      if (!updated.length) return respond(res, 404, { success: false, message: 'Order not found.' })
+      if (!updated.length) return respond(res, 409, { success: false, message: 'Finalized or missing orders are read-only.' })
       return respond(res, 200, { success: true, message: 'Order status updated.' })
     }
 

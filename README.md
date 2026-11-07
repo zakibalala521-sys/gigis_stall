@@ -94,6 +94,13 @@ them to that cart. Customers can review their chronologically sorted orders
 and cancel only pending orders. Owners can create, view, update status, and
 delete orders; finalized history remains available after order deletion.
 
+Apply `supabase_order_ui_migration.sql` once after the order workflow migration
+to add the sole payment method (`Cash on Pick-up`) and the transactional
+customer pending-order edit function. It also makes Take-out the only order
+type. The dashboard and customer active-order views show only pending or
+ready-to-pick-up orders; finalized orders have separate history views and
+refresh automatically every 10 seconds.
+
 ### Temporary password reset
 
 The temporary `POST /api/auth/reset-password` endpoint is disabled unless both

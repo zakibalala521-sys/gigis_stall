@@ -54,7 +54,6 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
   const [catalogVersion, setCatalogVersion] = useState(0)
-  const [orderType, setOrderType] = useState('take-out')
   const [orderNotes, setOrderNotes] = useState('')
   const [orderSubmitting, setOrderSubmitting] = useState(false)
 
@@ -246,7 +245,7 @@ function App() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_type: orderType,
+          order_type: 'take-out',
           notes: orderNotes,
           items: cart.map((item) => ({ product_id: item.product_id, quantity: item.quantity })),
         }),
@@ -270,7 +269,7 @@ function App() {
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
           <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My orders</button>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setView('auth') }}>Sign in</button>}
+          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}>Order History</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <><button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My Orders</button><button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}>Order History</button></>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setView('auth') }}>Sign in</button>}
           {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
           </button>}
@@ -315,10 +314,14 @@ function App() {
           </section>
         ) : view === 'admin' && user?.role === 'owner' ? (
           <OwnerDashboard />
+        ) : view === 'admin-history' && user?.role === 'owner' ? (
+          <OwnerDashboard mode="history" />
         ) : view === 'manage-menu' && user?.role === 'owner' ? (
           <MenuManager onMenuChanged={() => setCatalogVersion((version) => version + 1)} />
         ) : view === 'customer-orders' && user?.role === 'customer' ? (
-          <CustomerOrders />
+          <CustomerOrders mode="active" />
+        ) : view === 'customer-history' && user?.role === 'customer' ? (
+          <CustomerOrders mode="history" />
         ) : (
           <>
         <section className="hero">
@@ -329,7 +332,7 @@ function App() {
             <a className="button button-dark" href="#menu">Explore the menu <ArrowDown size={16} /></a>
           </div>
           <div className="hero-banner">
-            <div className="banner-top"><span>Now serving</span><span>Dine-in · Take-out · Delivery</span></div>
+            <div className="banner-top"><span>Now serving</span><span>Take-out · Cash on Pick-up</span></div>
             <h2>Lutong bahay,<br /><i>sulit sa presyo.</i></h2>
             <ul className="banner-menu">
               {products.slice(0, 5).map((product) => (
@@ -371,7 +374,7 @@ function App() {
 
       <footer className="site-footer"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
 
-      {trayOpen && canOrder && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div>{user?.role === 'customer' && <div className="checkout-fields"><label>Order type<select value={orderType} onChange={(event) => setOrderType(event.target.value)}><option value="take-out">Take-out</option><option value="dine-in">Dine-in</option><option value="delivery">Delivery</option></select></label><label>Notes<input maxLength="255" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} placeholder="Optional order note" /></label></div>}{authError && <p className="auth-error" role="alert">{authError}</p>}<button className="button button-dark full checkout-button" type="button" disabled={orderSubmitting} onClick={placeOrder}>{orderSubmitting ? 'Placing order…' : user?.role === 'customer' ? 'Place order' : 'Sign in to checkout'} <span>→</span></button></>}</aside></div>}
+      {trayOpen && canOrder && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div>{user?.role === 'customer' && <div className="checkout-fields"><p className="order-payment-note">Take-out · Cash on Pick-up</p><label>Order notes<input maxLength="255" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} placeholder="Optional order note" /></label></div>}{authError && <p className="auth-error" role="alert">{authError}</p>}<button className="button button-dark full checkout-button" type="button" disabled={orderSubmitting} onClick={placeOrder}>{orderSubmitting ? 'Placing order…' : user?.role === 'customer' ? 'Place order' : 'Sign in to checkout'} <span>→</span></button></>}</aside></div>}
     </>
   )
 }

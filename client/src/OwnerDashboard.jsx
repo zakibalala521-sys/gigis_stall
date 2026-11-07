@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import OrderManager from './OrderManager'
 import './OwnerDashboard.css'
 
@@ -13,52 +12,38 @@ async function fetchDashboard() {
   return data.dashboard
 }
 
-function OwnerDashboard() {
+function OwnerDashboard({ mode = 'active' }) {
   const [dashboard, setDashboard] = useState(null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  const loadDashboard = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      setDashboard(await fetchDashboard())
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const [loading, setLoading] = useState(mode !== 'history')
 
   useEffect(() => {
+    if (mode === 'history') return undefined
     let active = true
-    fetchDashboard()
-      .then((data) => {
-        if (active) setDashboard(data)
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => { active = false }
-  }, [])
+    const load = () => fetchDashboard()
+      .then((data) => { if (active) { setDashboard(data); setError('') } })
+      .catch((requestError) => { if (active) setError(requestError.message) })
+      .finally(() => { if (active) setLoading(false) })
+    load()
+    const timer = window.setInterval(load, 10000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [mode])
 
   return (
     <section className="owner-dashboard">
       <div className="admin-heading">
         <div>
           <p className="eyebrow">Back of house</p>
-          <h1>Your stall,<br /><i>at a glance.</i></h1>
+          <h1>{mode === 'history' ? <>Order<br /><i>history.</i></> : <>Your stall,<br /><i>at a glance.</i></>}</h1>
         </div>
-        <button className="button button-dark refresh-button" type="button" onClick={loadDashboard} disabled={loading}>
-          <RefreshCw size={16} /> Refresh
-        </button>
       </div>
 
       {error && <p className="dashboard-error" role="alert">{error}</p>}
-      {loading && !dashboard ? <p className="empty-state">Loading your dashboard...</p> : dashboard && (
+      {mode === 'history' ? <OrderManager mode="history" />
+        : loading && !dashboard ? <p className="empty-state">Loading your dashboard...</p> : dashboard && (
         <>
           <div className="dashboard-stats">
             <article><span>Today&apos;s sales</span><strong>{peso(dashboard.today_sales)}</strong></article>
@@ -67,7 +52,7 @@ function OwnerDashboard() {
             <article><span>Pending vendors</span><strong>{dashboard.pending_vendors}</strong></article>
           </div>
 
-          <OrderManager />
+          <OrderManager mode="active" />
         </>
       )}
     </section>
