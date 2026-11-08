@@ -1,34 +1,26 @@
-.owner-dashboard { margin:35px auto 110px; max-width:1320px; min-height:560px; padding:0 5vw; }
-.admin-heading { align-items:end; display:flex; justify-content:space-between; margin-bottom:44px; }
-.admin-heading h1 { font-size:clamp(45px,6vw,78px); }
-.admin-heading h1 i { color:var(--tomato); }
-.refresh-button { align-items:center; gap:9px; }
-.refresh-button:disabled { cursor:wait; opacity:.65; }
-.dashboard-stats { display:grid; gap:14px; grid-template-columns:repeat(4,1fr); margin-bottom:58px; }
-.dashboard-stats article { background:var(--cream); display:flex; flex-direction:column; gap:12px; min-height:130px; padding:22px; }
-.dashboard-stats span,.dashboard-stats small { color:var(--muted); font-size:12px; }
-.dashboard-stats strong { font-family:'Playfair Display',serif; font-size:clamp(23px,3vw,34px); }
-.dashboard-stats small { margin-top:-8px; }
-.dashboard-orders { border-top:1px solid var(--line); padding-top:26px; }
-.dashboard-section-heading { align-items:end; display:flex; justify-content:space-between; margin-bottom:20px; }
-.dashboard-section-heading h2 { font-size:32px; }
-.dashboard-section-heading .eyebrow { margin-bottom:10px; }
-.dashboard-section-heading > span { color:var(--muted); font-size:12px; }
-.dashboard-table-wrap { overflow-x:auto; }
-.dashboard-table { border-collapse:collapse; font-size:12px; min-width:850px; text-align:left; width:100%; }
-.dashboard-table th { color:var(--muted); font-size:10px; font-weight:500; letter-spacing:.08em; padding:12px 10px; text-transform:uppercase; }
-.dashboard-table td { border-top:1px solid var(--line); padding:15px 10px; white-space:nowrap; }
-.order-status { background:var(--cream); border-radius:20px; display:inline-block; padding:6px 10px; text-transform:capitalize; }
-.status-pending { background:#f6e8c8; }
-.dashboard-error { background:#f6d8d0; color:#812b1b; font-size:13px; padding:14px; }
+.owner-dashboard { position: relative; }
+.owner-dashboard::before { position: absolute; z-index: -1; top: 20px; right: 7%; width: 180px; height: 180px; border: 1px solid var(--sun); border-radius: 50%; content: ''; opacity: .42; }
+.dashboard-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-bottom: 48px; }
+.dashboard-stats article { position: relative; display: flex; min-height: 145px; flex-direction: column; gap: 13px; overflow: hidden; padding: 21px; border: 1px solid var(--line); border-radius: 7px 25px 7px 7px; background: #fffdf8; box-shadow: 0 8px 26px rgb(23 51 58 / 4%); }
+.dashboard-stats article::after { position: absolute; right: -23px; bottom: -31px; width: 82px; height: 82px; border: 1px solid rgb(81 123 104 / 22%); border-radius: 50%; content: ''; }
+.dashboard-stats article:nth-child(2) { background: #f7f0df; }
+.dashboard-stats article:nth-child(3) { background: #e8f0e5; }
+.dashboard-stats article:nth-child(4) { background: #f1e7eb; }
+.dashboard-stats span,.dashboard-stats small { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .04em; }
+.dashboard-stats strong { color: var(--ink); font-family: 'Fraunces', serif; font-size: clamp(24px, 3vw, 37px); font-weight: 600; letter-spacing: -.04em; }
+.dashboard-stats small { margin-top: -7px; }
+.dashboard-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.dashboard-section-heading h2 { font-size: 34px; }
+.dashboard-section-heading .eyebrow { margin-bottom: 9px; }
+.dashboard-section-heading > span { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; }
+.refresh-button { align-items: center; gap: 9px; }
+.refresh-button:disabled { cursor: wait; opacity: .65; }
 
-@media(max-width:850px) {
-  .dashboard-stats { grid-template-columns:repeat(2,1fr); }
+@media (max-width: 850px) {
+  .dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
-@media(max-width:520px) {
-  .admin-heading { align-items:flex-start; flex-direction:column; gap:24px; }
-  .dashboard-section-heading { align-items:flex-start; flex-direction:column; gap:8px; }
-  .dashboard-stats { gap:8px; }
-  .dashboard-stats article { min-height:110px; padding:16px; }
+@media (max-width: 520px) {
+  .dashboard-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .dashboard-stats { gap: 9px; }
+  .dashboard-stats article { min-height: 105px; padding: 15px; }
 }

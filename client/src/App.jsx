@@ -1,5 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, Eye, EyeOff, Minus, Plus, Search, X } from 'lucide-react'
+import {
+  ArrowDown,
+  CircleUserRound,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  LayoutDashboard,
+  Leaf,
+  LogIn,
+  LogOut,
+  Mail,
+  Minus,
+  PanelsTopLeft,
+  Plus,
+  Search,
+  ShieldCheck,
+  ShoppingBasket,
+  Utensils,
+  UserRound,
+  X,
+} from 'lucide-react'
 import MenuManager from './MenuManager'
 import OwnerDashboard from './OwnerDashboard'
 import CustomerOrders from './CustomerOrders'
@@ -384,12 +404,24 @@ function App() {
   return (
     <>
       <header className="site-header">
-        <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
+        <a className="brand" href="#menu"><span className="brand-mark"><Utensils size={18} strokeWidth={2.2} /></span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
-          <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}>Order History</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <><button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My Orders</button><button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}>Order History</button></>}<button className={view === 'account' ? 'active' : ''} type="button" onClick={() => { setCurrentPassword(''); setNewPassword(''); setNewPasswordConfirmation(''); setAuthError(''); setAuthNotice(''); setView('account') }}>Me</button><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setAuthMode('signin'); setView('auth') }}>Sign in</button>}
+          <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}><Utensils size={15} />Menu</button>
+          {user ? <>
+            {user.role === 'owner' && <>
+              <button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}><LayoutDashboard size={15} />Dashboard</button>
+              <button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}><ClipboardList size={15} />Order History</button>
+              <button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}><PanelsTopLeft size={15} />Menu manager</button>
+            </>}
+            {user.role === 'customer' && <>
+              <button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}><ClipboardList size={15} />My Orders</button>
+              <button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}><ClipboardList size={15} />Order History</button>
+            </>}
+            <button className={view === 'account' ? 'active' : ''} type="button" onClick={() => { setCurrentPassword(''); setNewPassword(''); setNewPasswordConfirmation(''); setAuthError(''); setAuthNotice(''); setView('account') }}><CircleUserRound size={15} />Me</button>
+            <button type="button" onClick={signOut}><LogOut size={15} />Sign out</button>
+          </> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setAuthMode('signin'); setView('auth') }}><LogIn size={15} />Sign in</button>}
           {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
-            Your tray <span>{cartCount}</span>
+            <ShoppingBasket size={16} />Your tray <span>{cartCount}</span>
           </button>}
         </nav>
       </header>
@@ -398,14 +430,14 @@ function App() {
         {view === 'account' && user ? (
           <section className="auth-page">
             <div className="auth-card">
-              <p className="eyebrow">My account</p>
+              <p className="eyebrow"><CircleUserRound size={14} />My account</p>
               <h1>Your<br /><i>details.</i></h1>
               <dl className="account-details">
-                <div><dt>Name</dt><dd>{user.full_name}</dd></div>
-                <div><dt>Email</dt><dd>{user.email}</dd></div>
-                <div><dt>Account type</dt><dd>{user.role === 'owner' ? 'Owner' : 'Customer'}</dd></div>
+                <div><dt><UserRound size={14} />Name</dt><dd>{user.full_name}</dd></div>
+                <div><dt><Mail size={14} />Email</dt><dd>{user.email}</dd></div>
+                <div><dt><ShieldCheck size={14} />Account type</dt><dd>{user.role === 'owner' ? 'Owner' : 'Customer'}</dd></div>
               </dl>
-              <h2 className="account-security-heading">Change password</h2>
+              <h2 className="account-security-heading"><ShieldCheck size={23} />Change password</h2>
               <p className="auth-intro">Enter your current password and choose a new one. No email code is sent.</p>
               {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
               <form className="auth-form" onSubmit={changePassword}>
@@ -482,13 +514,13 @@ function App() {
           <>
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">{user?.role === 'customer' ? 'Welcome back' : 'Welcome to'}</p>
+            <p className="eyebrow"><Leaf size={14} />{user?.role === 'customer' ? 'Welcome back' : 'Welcome to'}</p>
             <h1>{user?.role === 'customer' ? <>Good to see<br /><i>you again.</i></> : <>Gigi&apos;s<br /><i>Food House.</i></>}</h1>
             <p className="hero-text">{user?.role === 'customer' ? `Welcome back, ${user.full_name}. Browse the menu and see what you would like today.` : 'Gigi\'s little canteen serving siomai, chicken pastil, waffles and merienda favorites, hot from the kitchen and easy on the baon.'}</p>
             <a className="button button-dark" href="#menu">Explore the menu <ArrowDown size={16} /></a>
           </div>
           <div className="hero-banner">
-            <div className="banner-top"><span>Now serving</span><span>Take-out · Cash on Pick-up</span></div>
+            <div className="banner-top"><span><Leaf size={14} />Now serving</span><span>Take-out · Cash on Pick-up</span></div>
             <h2>Lutong bahay,<br /><i>sulit sa presyo.</i></h2>
             <ul className="banner-menu">
               {products.slice(0, 5).map((product) => (
@@ -506,7 +538,7 @@ function App() {
 
         <section className="menu-section" id="menu">
           <div className="section-heading">
-            <div><p className="eyebrow">The menu</p><h2>Made fresh.<br />Every day.</h2></div>
+            <div><p className="eyebrow"><Utensils size={14} />The menu</p><h2>Made fresh.<br />Every day.</h2></div>
             <div className="menu-tools"><p>Rice meals, merienda and palamig, all priced for everyday.</p><label className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu..." /></label></div>
           </div>
           <div className="category-nav" aria-label="Menu categories">
