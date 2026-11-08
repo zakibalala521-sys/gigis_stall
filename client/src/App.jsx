@@ -44,11 +44,15 @@ function App() {
   const [error, setError] = useState('')
   const [trayOpen, setTrayOpen] = useState(false)
   const [view, setView] = useState('catalog')
+  const [passwordChangeReturnView, setPasswordChangeReturnView] = useState('catalog')
   const [user, setUser] = useState(null)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('')
   const [otpToken, setOtpToken] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [authMode, setAuthMode] = useState('signin')
@@ -289,6 +293,47 @@ function App() {
     }
   }
 
+  const changePassword = async (event) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+    setAuthNotice('')
+
+    if (newPassword !== newPasswordConfirmation) {
+      setAuthError('The new passwords do not match.')
+      setAuthLoading(false)
+      return
+    }
+    if (newPassword.length < 8 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setAuthError('Use at least 8 characters, including uppercase, lowercase, a number, and a symbol.')
+      setAuthLoading(false)
+      return
+    }
+
+    try {
+      if (!supabase || !user?.email) throw new Error('You must be signed in to change your password.')
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+      if (reauthError) throw new Error('Current password is incorrect.')
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateError) throw updateError
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setNewPasswordConfirmation('')
+      setAuthMode('signin')
+      setAuthNotice('Your password has been changed.')
+      setView(passwordChangeReturnView)
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   const signOut = async () => {
     try {
       if (!supabase) throw new Error('Supabase Auth is not configured.')
@@ -345,7 +390,7 @@ function App() {
         <a className="brand" href="#menu"><span className="brand-mark">G</span><span>Gigi&apos;s <em>Food</em> House</span></a>
         <nav className="site-nav" aria-label="Main navigation">
           <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}>Menu</button>
-          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}>Order History</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <><button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My Orders</button><button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}>Order History</button></>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setView('auth') }}>Sign in</button>}
+          {user ? <>{user.role === 'owner' && <><button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}>Dashboard</button><button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}>Order History</button><button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}>Menu manager</button></>}{user.role === 'customer' && <><button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}>My Orders</button><button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}>Order History</button></>}<span className="account-name">{user.role === 'customer' ? `Hi, ${user.full_name}` : user.full_name}</span><button type="button" onClick={() => { setPasswordChangeReturnView(view); setCurrentPassword(''); setNewPassword(''); setNewPasswordConfirmation(''); setAuthMode('change-password'); setAuthError(''); setAuthNotice(''); setView('auth') }}>Change password</button><button type="button" onClick={signOut}>Sign out</button></> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setAuthMode('signin'); setView('auth') }}>Sign in</button>}
           {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
             Your tray <span>{cartCount}</span>
           </button>}
@@ -356,11 +401,24 @@ function App() {
         {view === 'auth' ? (
           <section className="auth-page">
             <div className="auth-card">
-              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : 'Email verification'}</p>
-              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : <>Check your<br /><i>email.</i></>}</h1>
-              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : 'Enter the 6-digit code we sent you.'}</p>
+              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : authMode === 'change-password' ? 'Account security' : 'Email verification'}</p>
+              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : authMode === 'change-password' ? <>Change your<br /><i>password.</i></> : <>Check your<br /><i>email.</i></>}</h1>
+              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : authMode === 'change-password' ? 'Enter your current password and choose a new one. No email code is sent.' : 'Enter the 6-digit code we sent you.'}</p>
               {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
-              {authMode === 'otp' ? (
+              {authMode === 'change-password' ? (
+                <form className="auth-form" onSubmit={changePassword}>
+                  <label htmlFor="current-password">Current password</label>
+                  <input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+                  <label htmlFor="change-new-password">New password</label>
+                  <input id="change-new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoComplete="new-password" />
+                  <p className="password-requirements">At least 8 characters, including uppercase, lowercase, a number, and a symbol.</p>
+                  <label htmlFor="change-confirm-password">Confirm new password</label>
+                  <input id="change-confirm-password" type="password" value={newPasswordConfirmation} onChange={(event) => setNewPasswordConfirmation(event.target.value)} required autoComplete="new-password" />
+                  {authError && <p className="auth-error" role="alert">{authError}</p>}
+                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Changing password...' : 'Change password'} <span>→</span></button>
+                  <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode('signin'); setAuthError(''); setAuthNotice(''); setView(passwordChangeReturnView) }}>Cancel</button>
+                </form>
+              ) : authMode === 'otp' ? (
                 <form className="auth-form" onSubmit={verifyOtp}>
                   <label htmlFor="verification-code">6-digit code</label>
                   <input id="verification-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" value={otpToken} onChange={(event) => setOtpToken(event.target.value.replace(/\D/g, '').slice(0, 6))} required aria-label="6-digit verification code" />
