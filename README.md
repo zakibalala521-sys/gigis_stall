@@ -72,7 +72,9 @@ project. Configure Supabase Auth email templates to send the six-digit
 configure the project's custom SMTP provider in Supabase Auth. Enable the
 Email provider's **Confirm email** setting so signup requires OTP verification.
 The client
-supports signup OTP, resend countdown, password login, and recovery OTP.
+supports signup OTP, resend countdown, and password login. Password recovery
+is not available in the app; an administrator must reset passwords through
+Supabase Auth.
 Guest carts stay in browser storage and are available after sign-in.
 
 The server links a confirmed Supabase Auth user to an existing `public.users`

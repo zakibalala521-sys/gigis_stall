@@ -52,7 +52,6 @@ function App() {
   const [otpToken, setOtpToken] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [authMode, setAuthMode] = useState('signin')
-  const [otpPurpose, setOtpPurpose] = useState(null)
   const [resendSeconds, setResendSeconds] = useState(0)
   const [authError, setAuthError] = useState(supabase ? '' : 'Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
   const [authNotice, setAuthNotice] = useState('')
@@ -234,7 +233,6 @@ function App() {
         setView('catalog')
         if (cart.length > 0) setTrayOpen(true)
       } else {
-        setOtpPurpose('signup')
         setOtpToken('')
         setResendSeconds(60)
         setAuthMode('otp')
@@ -247,53 +245,25 @@ function App() {
     }
   }
 
-  const requestPasswordReset = async (event) => {
-    event.preventDefault()
-    setAuthLoading(true)
-    setAuthError('')
-    setAuthNotice('')
-    try {
-      if (!supabase) throw new Error('Supabase Auth is not configured.')
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim())
-      if (resetError) throw resetError
-      setOtpPurpose('recovery')
-      setOtpToken('')
-      setResendSeconds(60)
-      setAuthMode('otp')
-      setAuthNotice(`Enter the 6-digit recovery code sent to ${email.trim()}.`)
-    } catch (requestError) {
-      setAuthError(requestError.message)
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
   const verifyOtp = async (event) => {
     event.preventDefault()
     setAuthLoading(true)
     setAuthError('')
     try {
-      if (!supabase || !otpPurpose) throw new Error('The verification flow is unavailable. Please start again.')
+      if (!supabase) throw new Error('Supabase Auth is not configured.')
       const { data, error: verificationError } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: otpToken.trim(),
-        type: otpPurpose,
+        type: 'signup',
       })
       if (verificationError) throw verificationError
       if (!data.session) throw new Error('Code verified, but no authenticated session was returned.')
-      if (otpPurpose === 'recovery') {
-        setAuthMode('new-password')
-        setOtpPurpose(null)
-        setAuthNotice('Code verified. Choose a new password.')
-      } else {
-        const profile = await syncProfile(data.session)
-        if (!profile) throw new Error('Could not load your account profile.')
-        setAuthMode('signin')
-        setOtpPurpose(null)
-        setAuthNotice('Your email is verified and your account is ready.')
-        setView('catalog')
-        if (cart.length > 0) setTrayOpen(true)
-      }
+      const profile = await syncProfile(data.session)
+      if (!profile) throw new Error('Could not load your account profile.')
+      setAuthMode('signin')
+      setAuthNotice('Your email is verified and your account is ready.')
+      setView('catalog')
+      if (cart.length > 0) setTrayOpen(true)
       setOtpToken('')
     } catch (requestError) {
       setAuthError(requestError.message)
@@ -303,52 +273,15 @@ function App() {
   }
 
   const resendOtp = async () => {
-    if (resendSeconds > 0 || !otpPurpose) return
+    if (resendSeconds > 0) return
     setAuthLoading(true)
     setAuthError('')
     try {
       if (!supabase) throw new Error('Supabase Auth is not configured.')
-      const { error: resendError } = otpPurpose === 'signup'
-        ? await supabase.auth.resend({ type: 'signup', email: email.trim() })
-        : await supabase.auth.resetPasswordForEmail(email.trim())
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
       if (resendError) throw resendError
       setResendSeconds(60)
       setAuthNotice(`A new 6-digit code was sent to ${email.trim()}.`)
-    } catch (requestError) {
-      setAuthError(requestError.message)
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  const updatePassword = async (event) => {
-    event.preventDefault()
-    setAuthLoading(true)
-    setAuthError('')
-    setAuthNotice('')
-    if (password !== passwordConfirmation) {
-      setAuthError('The passwords do not match.')
-      setAuthLoading(false)
-      return
-    }
-    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-      setAuthError('Use at least 8 characters, including uppercase, lowercase, a number, and a symbol.')
-      setAuthLoading(false)
-      return
-    }
-    try {
-      if (!supabase) throw new Error('Supabase Auth is not configured.')
-      const { error: updateError } = await supabase.auth.updateUser({ password })
-      if (updateError) throw updateError
-      const { data, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      const profile = await syncProfile(data.session)
-      if (!profile) throw new Error('Your password changed, but the account profile could not be loaded.')
-      setPassword('')
-      setPasswordConfirmation('')
-      setAuthMode('signin')
-      setAuthNotice('Your password has been updated.')
-      setView(profile.role === 'owner' ? 'admin' : 'catalog')
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -423,9 +356,9 @@ function App() {
         {view === 'auth' ? (
           <section className="auth-page">
             <div className="auth-card">
-              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : authMode === 'otp' ? 'Email verification' : authMode === 'forgot' ? 'Account recovery' : 'Choose a new password'}</p>
-              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : authMode === 'otp' ? <>Check your<br /><i>email.</i></> : authMode === 'forgot' ? <>Reset your<br /><i>password.</i></> : <>New<br /><i>password.</i></>}</h1>
-              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : authMode === 'otp' ? 'Enter the 6-digit code we sent you.' : authMode === 'forgot' ? 'Enter your email and we’ll send a recovery code.' : 'Choose a strong password for your account.'}</p>
+              <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : 'Email verification'}</p>
+              <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : <>Check your<br /><i>email.</i></>}</h1>
+              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : 'Enter the 6-digit code we sent you.'}</p>
               {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
               {authMode === 'otp' ? (
                 <form className="auth-form" onSubmit={verifyOtp}>
@@ -436,24 +369,6 @@ function App() {
                   <button className="auth-mode-toggle" type="button" disabled={authLoading || resendSeconds > 0} onClick={resendOtp}>
                     {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
                   </button>
-                </form>
-              ) : authMode === 'forgot' ? (
-                <form className="auth-form" onSubmit={requestPasswordReset}>
-                  <label htmlFor="recovery-email">Email</label>
-                  <input id="recovery-email" type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength="150" required autoComplete="email" />
-                  {authError && <p className="auth-error" role="alert">{authError}</p>}
-                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Sending code...' : 'Send recovery code'} <span>→</span></button>
-                  <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode('signin'); setAuthError(''); setAuthNotice('') }}>Back to sign in</button>
-                </form>
-              ) : authMode === 'new-password' ? (
-                <form className="auth-form" onSubmit={updatePassword}>
-                  <label htmlFor="new-password">New password</label>
-                  <input id="new-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="new-password" />
-                  <p className="password-requirements">At least 8 characters, including uppercase, lowercase, a number, and a symbol.</p>
-                  <label htmlFor="confirm-new-password">Confirm new password</label>
-                  <input id="confirm-new-password" type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required autoComplete="new-password" />
-                  {authError && <p className="auth-error" role="alert">{authError}</p>}
-                  <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? 'Updating password...' : 'Update password'} <span>→</span></button>
                 </form>
               ) : (
                 <form className="auth-form" onSubmit={authMode === 'signin' ? signIn : register}>
@@ -477,7 +392,6 @@ function App() {
                 </>}
                 {authError && <p className="auth-error" role="alert">{authError}</p>}
                 <button className="button button-dark auth-submit" type="submit" disabled={authLoading}>{authLoading ? (authMode === 'signin' ? 'Signing in...' : 'Creating account...') : (authMode === 'signin' ? 'Sign in' : 'Create account')} <span>→</span></button>
-                {authMode === 'signin' && <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthNotice('') }}>Forgot password?</button>}
                 <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={() => { setAuthMode(authMode === 'signin' ? 'signup' : 'signin'); setAuthError(''); setAuthNotice('') }}>
                   {authMode === 'signin' ? 'New to Gigi’s? Create an account' : 'Already have an account? Sign in'}
                 </button>
