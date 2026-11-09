@@ -90,7 +90,10 @@ function App() {
   const justAddedTimer = useRef(0)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
+    const onScroll = () => {
+      setScrolled(window.scrollY > 8)
+      document.documentElement.style.setProperty('--sy', Math.min(window.scrollY, 1200))
+    }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -578,20 +581,26 @@ function App() {
         ) : (
           <>
         <section className="hero">
+          <div className="hero-inner">
           <div className="hero-copy">
-            <p className="eyebrow">{user?.role === 'customer' ? `Welcome back, ${user.full_name.split(' ')[0]}` : 'Gigi’s Food House'}</p>
-            <h1>Lutong bahay, <i>sulit sa presyo.</i></h1>
-            <p className="hero-text">{user?.role === 'customer' ? 'The kitchen is open. Pick your favorites, place your order, and we’ll have it ready when you get here.' : 'A small canteen serving siomai, chicken pastil, waffles and merienda favorites, hot from the kitchen and easy on the baon.'}</p>
+            <p className="hero-kicker">{user?.role === 'customer' ? `Hey ${user.full_name.split(' ')[0]}, welcome back!` : 'Hello, gutom ka na?'}</p>
+            <h1><span>Lutong</span> <span>bahay,</span> <span className="hl">sulit sa</span> <span className="hl">presyo.</span></h1>
+            <p className="hero-text">{user?.role === 'customer' ? 'The kitchen is open. Pick your favorites, place your order, and we’ll have it ready when you get here.' : 'Siomai, chicken pastil, waffles and all your merienda favorites, hot from Gigi’s kitchen and easy on the baon.'}</p>
             <div className="hero-actions">
-              <a className="button button-dark" href="#menu">See the menu <ArrowDown size={17} /></a>
+              <a className="button button-yellow" href="#menu">See the menu <ArrowDown size={18} /></a>
               <span className="hero-meta">Take-out · Cash on pick-up</span>
             </div>
           </div>
           <div className="hero-visual">
-            <figure className="hero-photo">
-              <img src="/menu/waffle.jpg" alt="A tray of freshly made waffles" />
-              <figcaption>Fresh off the iron</figcaption>
-            </figure>
+            <figure className="polaroid p1"><img src="/menu/waffle.jpg" alt="Freshly made waffles" /><figcaption>waffles!</figcaption></figure>
+            <figure className="polaroid p2"><img src="/menu/siomai-new.jpg" alt="Steamed siomai" /><figcaption>siomai</figcaption></figure>
+            <figure className="polaroid p3"><img src="/menu/banana-cue.jpg" alt="Banana cue on sticks" /><figcaption>banana cue</figcaption></figure>
+            <svg className="spin-badge" viewBox="0 0 140 140" aria-hidden="true">
+              <defs><path id="badge-path" d="M70,70 m-52,0 a52,52 0 1,1 104,0 a52,52 0 1,1 -104,0" /></defs>
+              <circle cx="70" cy="70" r="68" />
+              <text><textPath href="#badge-path" textLength="322" lengthAdjust="spacing">FRESH DAILY ★ LUTONG BAHAY ★ GIGI&apos;S ★</textPath></text>
+              <text className="badge-center" x="70" y="84" textAnchor="middle">G</text>
+            </svg>
             {products.length > 0 && <div className="hero-card">
               <div className="hero-card-head"><h3>Today&apos;s picks</h3><span>{products.length} on the menu</span></div>
               <ul className="banner-menu">
@@ -606,17 +615,21 @@ function App() {
               </ul>
             </div>}
           </div>
+          </div>
         </section>
 
-        {products.length > 0 && <div className="marquee" aria-hidden="true">
-          <div className="marquee-track">
+        {products.length > 0 && <div className="marquee-wrap" aria-hidden="true">
+          <div className="marquee marquee-back"><div className="marquee-track reverse">
             {[0, 1].map((copy) => products.map((product) => <span key={`${copy}-${product.product_id}`}>{product.name}</span>))}
-          </div>
+          </div></div>
+          <div className="marquee marquee-front"><div className="marquee-track">
+            {[0, 1].map((copy) => products.map((product) => <span key={`${copy}-${product.product_id}`}>{product.name}</span>))}
+          </div></div>
         </div>}
 
         <section className="menu-section" id="menu">
           <div className="section-heading" data-reveal>
-            <div><p className="eyebrow">The menu</p><h2>Made fresh, <i>every day.</i></h2></div>
+            <div><p className="eyebrow">The menu</p><h2>Made fresh <i>every single day!</i></h2></div>
             <div className="menu-tools"><p>Rice meals, merienda and palamig, all priced for everyday.</p><label className="search-box"><Search size={17} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu" aria-label="Search the menu" /></label></div>
           </div>
           <div className="menu-filters">
@@ -633,9 +646,9 @@ function App() {
           <div className="product-grid" key={category}>
             {visibleProducts.map((product, index) => (
               <article className={`product-card${product.is_available ? '' : ' is-sold-out'}`} key={product.product_id} data-reveal style={{ '--i': index % 3 }}>
-                <div className="product-image"><img src={imageFor(product)} alt={product.name} loading="lazy" /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}</div>
+                <div className="product-image"><img src={imageFor(product)} alt={product.name} loading="lazy" /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}<strong className="price-sticker"><small>₱</small>{Number(product.price).toFixed(0)}</strong></div>
                 <div className="product-info">
-                  <div className="product-title"><h3>{product.name}</h3><strong className="product-price">₱{Number(product.price).toFixed(2)}</strong></div>
+                  <div className="product-title"><h3>{product.name}</h3></div>
                   <p>{product.description || 'Made fresh for you.'}</p>
                   {sessionChecked && canOrder && product.is_available === 1 && <div className="product-buy"><button className={`add-button${justAdded === product.product_id ? ' is-added' : ''}`} onClick={() => addToTray(product)} aria-label={`Add ${product.name} to tray`}>{justAdded === product.product_id ? <><Check size={16} />Added</> : <><Plus size={16} />Add to tray</>}</button></div>}
                 </div>
@@ -650,14 +663,16 @@ function App() {
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-brand">
-            <h2>Gigi&apos;s <i>Food House</i></h2>
+            <p className="footer-hand">Kain na!</p>
             <p>Lutong bahay, served with a smile. Order ahead and pick it up hot from the counter.</p>
+            <a className="button button-yellow" href="#menu" onClick={() => setView('catalog')}>Order now <span>→</span></a>
           </div>
           <div className="footer-meta">
             <strong>Take-out only</strong>
             <span>Cash on pick-up</span>
           </div>
         </div>
+        <p className="footer-giant" aria-hidden="true">GIGI&apos;S</p>
         <div className="footer-bottom"><span>© {currentYear} Gigi&apos;s Food House</span><span>Made fresh, every day.</span></div>
       </footer>
 
