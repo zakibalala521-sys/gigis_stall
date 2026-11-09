@@ -581,7 +581,7 @@ function App() {
           <div className="hero-copy">
             <p className="eyebrow">{user?.role === 'customer' ? `Welcome back, ${user.full_name.split(' ')[0]}` : 'Gigi’s Food House'}</p>
             <h1>Lutong bahay, <i>sulit sa presyo.</i></h1>
-            <p className="hero-text">{user?.role === 'customer' ? 'The kitchen is open. Pick your favorites, place your order, and we’ll have it ready when you get here.' : 'A small canteen serving siomai, chicken pastil, waffles and merienda favorites — hot from the kitchen and easy on the baon.'}</p>
+            <p className="hero-text">{user?.role === 'customer' ? 'The kitchen is open. Pick your favorites, place your order, and we’ll have it ready when you get here.' : 'A small canteen serving siomai, chicken pastil, waffles and merienda favorites, hot from the kitchen and easy on the baon.'}</p>
             <div className="hero-actions">
               <a className="button button-dark" href="#menu">See the menu <ArrowDown size={17} /></a>
               <span className="hero-meta">Take-out · Cash on pick-up</span>
@@ -617,7 +617,7 @@ function App() {
         <section className="menu-section" id="menu">
           <div className="section-heading" data-reveal>
             <div><p className="eyebrow">The menu</p><h2>Made fresh, <i>every day.</i></h2></div>
-            <div className="menu-tools"><p>Rice meals, merienda and palamig — all priced for everyday.</p><label className="search-box"><Search size={17} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu" aria-label="Search the menu" /></label></div>
+            <div className="menu-tools"><p>Rice meals, merienda and palamig, all priced for everyday.</p><label className="search-box"><Search size={17} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu" aria-label="Search the menu" /></label></div>
           </div>
           <div className="menu-filters">
             <div className="category-nav" aria-label="Menu categories">
