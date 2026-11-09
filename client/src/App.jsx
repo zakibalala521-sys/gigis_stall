@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
+  Check,
   CircleUserRound,
   ClipboardList,
   Eye,
   EyeOff,
   LayoutDashboard,
-  Leaf,
   LogIn,
   LogOut,
   Mail,
@@ -28,6 +28,7 @@ import { supabase } from './supabase'
 import './App.css'
 
 const apiUrl = import.meta.env.VITE_API_URL || ''
+const currentYear = new Date().getFullYear()
 
 const imageFor = (product) => {
   if (product.image) {
@@ -83,6 +84,41 @@ function App() {
   const [catalogVersion, setCatalogVersion] = useState(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [orderSubmitting, setOrderSubmitting] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [trayClosing, setTrayClosing] = useState(false)
+  const [justAdded, setJustAdded] = useState(null)
+  const justAddedTimer = useRef(0)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [view])
+
+  const closeTray = () => {
+    if (!trayOpen || trayClosing) return
+    setTrayClosing(true)
+    window.setTimeout(() => {
+      setTrayOpen(false)
+      setTrayClosing(false)
+    }, 280)
+  }
+
+  useEffect(() => {
+    if (!trayOpen) return undefined
+    document.body.classList.add('scroll-locked')
+    const onKey = (event) => { if (event.key === 'Escape') closeTray() }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.classList.remove('scroll-locked')
+      window.removeEventListener('keydown', onKey)
+    }
+  })
 
   const syncProfile = async (session) => {
     if (!session?.access_token) {
@@ -181,6 +217,30 @@ function App() {
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
   const cartTotal = cart.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
   const canOrder = !user || user.role === 'customer'
+
+  useEffect(() => {
+    const targets = document.querySelectorAll('[data-reveal]:not([data-shown])')
+    if (!('IntersectionObserver' in window)) {
+      targets.forEach((element) => { element.dataset.shown = '' })
+      return undefined
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return
+        entry.target.dataset.shown = ''
+        observer.unobserve(entry.target)
+      })
+    }, { rootMargin: '0px 0px -8% 0px', threshold: .08 })
+    targets.forEach((element) => observer.observe(element))
+    return () => observer.disconnect()
+  }, [view, visibleProducts, user])
+
+  const addToTray = (product) => {
+    updateCart(product, 1)
+    setJustAdded(product.product_id)
+    window.clearTimeout(justAddedTimer.current)
+    justAddedTimer.current = window.setTimeout(() => setJustAdded(null), 1100)
+  }
 
   const updateCart = (product, change) => {
     setCart((current) => {
@@ -403,30 +463,35 @@ function App() {
 
   return (
     <>
-      <header className="site-header">
-        <a className="brand" href="#menu"><span className="brand-mark"><Utensils size={18} strokeWidth={2.2} /></span><span>Gigi&apos;s <em>Food</em> House</span></a>
+      <header className={`site-header${scrolled ? ' is-scrolled' : ''}`}>
+        <div className="header-inner">
+        <a className="brand" href="#menu" onClick={() => setView('catalog')}>
+          <span className="brand-mark" aria-hidden="true">G</span>
+          <span className="brand-text"><strong>Gigi&apos;s</strong><small>Food House</small></span>
+        </a>
         <nav className="site-nav" aria-label="Main navigation">
-          <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => setView('catalog')}><Utensils size={15} />Menu</button>
+          <button className={`nav-link${view === 'catalog' ? ' active' : ''}`} type="button" onClick={() => setView('catalog')}><Utensils size={15} />Menu</button>
           {user ? <>
             {user.role === 'owner' && <>
-              <button className={view === 'admin' ? 'active' : ''} type="button" onClick={() => setView('admin')}><LayoutDashboard size={15} />Dashboard</button>
-              <button className={view === 'admin-history' ? 'active' : ''} type="button" onClick={() => setView('admin-history')}><ClipboardList size={15} />Order History</button>
-              <button className={view === 'manage-menu' ? 'active' : ''} type="button" onClick={() => setView('manage-menu')}><PanelsTopLeft size={15} />Menu manager</button>
+              <button className={`nav-link${view === 'admin' ? ' active' : ''}`} type="button" onClick={() => setView('admin')}><LayoutDashboard size={15} />Dashboard</button>
+              <button className={`nav-link${view === 'admin-history' ? ' active' : ''}`} type="button" onClick={() => setView('admin-history')}><ClipboardList size={15} />Order history</button>
+              <button className={`nav-link${view === 'manage-menu' ? ' active' : ''}`} type="button" onClick={() => setView('manage-menu')}><PanelsTopLeft size={15} />Menu manager</button>
             </>}
             {user.role === 'customer' && <>
-              <button className={view === 'customer-orders' ? 'active' : ''} type="button" onClick={() => setView('customer-orders')}><ClipboardList size={15} />My Orders</button>
-              <button className={view === 'customer-history' ? 'active' : ''} type="button" onClick={() => setView('customer-history')}><ClipboardList size={15} />Order History</button>
+              <button className={`nav-link${view === 'customer-orders' ? ' active' : ''}`} type="button" onClick={() => setView('customer-orders')}><ClipboardList size={15} />My orders</button>
+              <button className={`nav-link${view === 'customer-history' ? ' active' : ''}`} type="button" onClick={() => setView('customer-history')}><ClipboardList size={15} />History</button>
             </>}
-            <button className={view === 'account' ? 'active' : ''} type="button" onClick={() => { setCurrentPassword(''); setNewPassword(''); setNewPasswordConfirmation(''); setAuthError(''); setAuthNotice(''); setView('account') }}><CircleUserRound size={15} />Me</button>
-            <button type="button" onClick={signOut}><LogOut size={15} />Sign out</button>
-          </> : <button className={view === 'auth' ? 'active' : ''} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setAuthMode('signin'); setView('auth') }}><LogIn size={15} />Sign in</button>}
-          {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)}>
-            <ShoppingBasket size={16} />Your tray <span>{cartCount}</span>
-          </button>}
+            <button className={`nav-link${view === 'account' ? ' active' : ''}`} type="button" onClick={() => { setCurrentPassword(''); setNewPassword(''); setNewPasswordConfirmation(''); setAuthError(''); setAuthNotice(''); setView('account') }}><CircleUserRound size={15} />Account</button>
+            <button className="nav-link" type="button" onClick={signOut}><LogOut size={15} />Sign out</button>
+          </> : <button className={`nav-link${view === 'auth' ? ' active' : ''}`} type="button" onClick={() => { setAuthError(''); setAuthNotice(''); setAuthMode('signin'); setView('auth') }}><LogIn size={15} />Sign in</button>}
         </nav>
+        {sessionChecked && canOrder && <button className="tray-link" type="button" onClick={() => setTrayOpen(true)} aria-label={`Open your tray, ${cartCount} items`}>
+          <ShoppingBasket size={17} /><span className="tray-label">Your tray</span> <span className={`tray-count${cartCount ? ' bump' : ''}`} key={cartCount}>{cartCount}</span>
+        </button>}
+        </div>
       </header>
 
-      <main>
+      <main className="view" key={view}>
         {view === 'account' && user ? (
           <section className="auth-page">
             <div className="auth-card">
@@ -514,44 +579,66 @@ function App() {
           <>
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow"><Leaf size={14} />{user?.role === 'customer' ? 'Welcome back' : 'Welcome to'}</p>
-            <h1>{user?.role === 'customer' ? <>Good to see<br /><i>you again.</i></> : <>Gigi&apos;s<br /><i>Food House.</i></>}</h1>
-            <p className="hero-text">{user?.role === 'customer' ? `Welcome back, ${user.full_name}. Browse the menu and see what you would like today.` : 'Gigi\'s little canteen serving siomai, chicken pastil, waffles and merienda favorites, hot from the kitchen and easy on the baon.'}</p>
-            <a className="button button-dark" href="#menu">Explore the menu <ArrowDown size={16} /></a>
+            <p className="eyebrow">{user?.role === 'customer' ? `Welcome back, ${user.full_name.split(' ')[0]}` : 'Gigi’s Food House'}</p>
+            <h1>Lutong bahay, <i>sulit sa presyo.</i></h1>
+            <p className="hero-text">{user?.role === 'customer' ? 'The kitchen is open. Pick your favorites, place your order, and we’ll have it ready when you get here.' : 'A small canteen serving siomai, chicken pastil, waffles and merienda favorites — hot from the kitchen and easy on the baon.'}</p>
+            <div className="hero-actions">
+              <a className="button button-dark" href="#menu">See the menu <ArrowDown size={17} /></a>
+              <span className="hero-meta">Take-out · Cash on pick-up</span>
+            </div>
           </div>
-          <div className="hero-banner">
-            <div className="banner-top"><span><Leaf size={14} />Now serving</span><span>Take-out · Cash on Pick-up</span></div>
-            <h2>Lutong bahay,<br /><i>sulit sa presyo.</i></h2>
-            <ul className="banner-menu">
-              {products.slice(0, 5).map((product) => (
-                <li key={product.product_id}>
-                  <img src={imageFor(product)} alt="" />
-                  <span>{product.name}</span>
-                  <strong>₱{Number(product.price).toFixed(0)}</strong>
-                  {sessionChecked && canOrder && product.is_available === 1 && <button className="banner-add" type="button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={16} /></button>}
-                </li>
-              ))}
-            </ul>
-            <div className="banner-foot"><span>Gigi&apos;s Food House</span><span>Fresh from the kitchen ↓</span></div>
+          <div className="hero-visual">
+            <figure className="hero-photo">
+              <img src="/menu/waffle.jpg" alt="A tray of freshly made waffles" />
+              <figcaption>Fresh off the iron</figcaption>
+            </figure>
+            {products.length > 0 && <div className="hero-card">
+              <div className="hero-card-head"><h3>Today&apos;s picks</h3><span>{products.length} on the menu</span></div>
+              <ul className="banner-menu">
+                {products.slice(0, 4).map((product) => (
+                  <li key={product.product_id}>
+                    <img src={imageFor(product)} alt="" />
+                    <span>{product.name}</span>
+                    <strong>₱{Number(product.price).toFixed(0)}</strong>
+                    {sessionChecked && canOrder && product.is_available === 1 && <button className={`banner-add${justAdded === product.product_id ? ' is-added' : ''}`} type="button" onClick={() => addToTray(product)} aria-label={`Add ${product.name} to tray`}>{justAdded === product.product_id ? <Check size={15} /> : <Plus size={15} />}</button>}
+                  </li>
+                ))}
+              </ul>
+            </div>}
           </div>
         </section>
 
-        <section className="menu-section" id="menu">
-          <div className="section-heading">
-            <div><p className="eyebrow"><Utensils size={14} />The menu</p><h2>Made fresh.<br />Every day.</h2></div>
-            <div className="menu-tools"><p>Rice meals, merienda and palamig, all priced for everyday.</p><label className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu..." /></label></div>
+        {products.length > 0 && <div className="marquee" aria-hidden="true">
+          <div className="marquee-track">
+            {[0, 1].map((copy) => products.map((product) => <span key={`${copy}-${product.product_id}`}>{product.name}</span>))}
           </div>
-          <div className="category-nav" aria-label="Menu categories">
-            {categories.map((item) => <button className={category === item ? 'active' : ''} key={item} onClick={() => setCategory(item)}>{item}</button>)}
+        </div>}
+
+        <section className="menu-section" id="menu">
+          <div className="section-heading" data-reveal>
+            <div><p className="eyebrow">The menu</p><h2>Made fresh, <i>every day.</i></h2></div>
+            <div className="menu-tools"><p>Rice meals, merienda and palamig — all priced for everyday.</p><label className="search-box"><Search size={17} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the menu" aria-label="Search the menu" /></label></div>
+          </div>
+          <div className="menu-filters">
+            <div className="category-nav" aria-label="Menu categories">
+              {categories.map((item) => <button className={category === item ? 'active' : ''} key={item} onClick={() => setCategory(item)}>{item}</button>)}
+            </div>
+            <p className="menu-count"><strong>{visibleProducts.length}</strong> of {products.length} dishes</p>
           </div>
           {error && <p className="error">{error}</p>}
-          {!error && products.length === 0 && <p className="empty-state">Loading the menu...</p>}
-          <p className="menu-count">Showing <strong>{visibleProducts.length}</strong> of {products.length} items</p>
-          <div className="product-grid">
-            {visibleProducts.map((product) => (
-              <article className="product-card" key={product.product_id}>
-                <div className="product-image"><img src={imageFor(product)} alt={product.name} /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}</div>
-                <div className="product-info"><div><h3>{product.name}</h3><p>{product.description || 'Made fresh for you.'}</p></div><div className="product-buy"><strong>₱{Number(product.price).toFixed(2)}</strong>{sessionChecked && canOrder && product.is_available === 1 && <button className="add-button" onClick={() => updateCart(product, 1)} aria-label={`Add ${product.name} to tray`}><Plus size={18} /></button>}</div></div>
+          {!error && products.length === 0 && <div className="product-grid" aria-label="Loading the menu">
+            {[0, 1, 2].map((item) => <div className="product-card skeleton-card" key={item}><div className="product-image" /><div className="skeleton-line" /><div className="skeleton-line short" /></div>)}
+          </div>}
+          {products.length > 0 && visibleProducts.length === 0 && <p className="empty-state">Nothing matches “{query}”. Try another dish or category.</p>}
+          <div className="product-grid" key={category}>
+            {visibleProducts.map((product, index) => (
+              <article className={`product-card${product.is_available ? '' : ' is-sold-out'}`} key={product.product_id} data-reveal style={{ '--i': index % 3 }}>
+                <div className="product-image"><img src={imageFor(product)} alt={product.name} loading="lazy" /><span>{product.categories?.name || 'Menu item'}</span>{!product.is_available && <strong className="sold-out-badge">Sold out</strong>}</div>
+                <div className="product-info">
+                  <div className="product-title"><h3>{product.name}</h3><strong className="product-price">₱{Number(product.price).toFixed(2)}</strong></div>
+                  <p>{product.description || 'Made fresh for you.'}</p>
+                  {sessionChecked && canOrder && product.is_available === 1 && <div className="product-buy"><button className={`add-button${justAdded === product.product_id ? ' is-added' : ''}`} onClick={() => addToTray(product)} aria-label={`Add ${product.name} to tray`}>{justAdded === product.product_id ? <><Check size={16} />Added</> : <><Plus size={16} />Add to tray</>}</button></div>}
+                </div>
               </article>
             ))}
           </div>
@@ -560,9 +647,21 @@ function App() {
         )}
       </main>
 
-      <footer className="site-footer"><span>Gigi&apos;s Food House</span><span>Lutong bahay, served with a smile.</span></footer>
+      <footer className="site-footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <h2>Gigi&apos;s <i>Food House</i></h2>
+            <p>Lutong bahay, served with a smile. Order ahead and pick it up hot from the counter.</p>
+          </div>
+          <div className="footer-meta">
+            <strong>Take-out only</strong>
+            <span>Cash on pick-up</span>
+          </div>
+        </div>
+        <div className="footer-bottom"><span>© {currentYear} Gigi&apos;s Food House</span><span>Made fresh, every day.</span></div>
+      </footer>
 
-      {trayOpen && canOrder && <div className="modal-backdrop" onClick={() => setTrayOpen(false)}><aside className="tray-panel" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray.</h2></div><button className="close-button" onClick={() => setTrayOpen(false)} aria-label="Close tray"><X /></button></div>{cart.length === 0 ? <p className="empty-panel">Your tray is empty. Add something delicious from the menu.</p> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div>{user?.role === 'customer' && <div className="checkout-fields"><p className="order-payment-note">Take-out · Cash on Pick-up</p><label>Order notes<input maxLength="255" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} placeholder="Optional order note" /></label></div>}{authError && <p className="auth-error" role="alert">{authError}</p>}<button className="button button-dark full checkout-button" type="button" disabled={orderSubmitting} onClick={placeOrder}>{orderSubmitting ? 'Placing order…' : user?.role === 'customer' ? 'Place order' : 'Sign in to checkout'} <span>→</span></button></>}</aside></div>}
+      {trayOpen && canOrder && <div className={`modal-backdrop${trayClosing ? ' is-closing' : ''}`} onClick={closeTray}><aside className="tray-panel" role="dialog" aria-modal="true" aria-label="Your tray" onClick={(event) => event.stopPropagation()}><div className="tray-header"><div><p className="eyebrow">Your order</p><h2>Your tray</h2></div><button className="close-button" onClick={closeTray} aria-label="Close tray"><X size={20} /></button></div>{cart.length === 0 ? <div className="empty-panel"><ShoppingBasket size={40} strokeWidth={1.5} /><p>Your tray is empty.<br />Add something delicious from the menu.</p><button className="button button-ghost" type="button" onClick={closeTray}>Browse the menu</button></div> : <>{cart.map((item) => <div className="tray-item" key={item.product_id}><img src={imageFor(item)} alt="" /><div><strong>{item.name}</strong><p>₱{Number(item.price).toFixed(2)}</p></div><div className="quantity"><button onClick={() => updateCart(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button><span>{item.quantity}</span><button onClick={() => updateCart(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button></div></div>)}<div className="tray-total"><span>Total</span><strong>₱{cartTotal.toFixed(2)}</strong></div>{user?.role === 'customer' && <div className="checkout-fields"><p className="order-payment-note">Take-out · Cash on Pick-up</p><label>Order notes<input maxLength="255" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} placeholder="Optional order note" /></label></div>}{authError && <p className="auth-error" role="alert">{authError}</p>}<button className="button button-dark full checkout-button" type="button" disabled={orderSubmitting} onClick={placeOrder}>{orderSubmitting ? 'Placing order…' : user?.role === 'customer' ? 'Place order' : 'Sign in to checkout'} <span>→</span></button></>}</aside></div>}
     </>
   )
 }
