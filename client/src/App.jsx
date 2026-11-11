@@ -30,6 +30,43 @@ import './App.css'
 const apiUrl = import.meta.env.VITE_API_URL || ''
 const currentYear = new Date().getFullYear()
 
+// Remembers an unfinished signup in this tab, so a refresh or a detour to the
+// sign-in form can return the user to the code screen instead of stranding them.
+const PENDING_VERIFICATION_KEY = 'gigi-pending-verification'
+const VERIFICATION_RESEND_SECONDS = 60
+
+function readPendingVerification() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(PENDING_VERIFICATION_KEY) || 'null')
+    if (typeof saved?.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saved.email)) return null
+    const sentAt = Number.isFinite(saved.sentAt) ? saved.sentAt : 0
+    return { email: saved.email, sentAt }
+  } catch {
+    return null
+  }
+}
+
+function savePendingVerification(email) {
+  try {
+    sessionStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify({ email, sentAt: Date.now() }))
+  } catch {
+    // Storage can be unavailable (private mode); the flow still works without it.
+  }
+}
+
+function clearPendingVerification() {
+  try {
+    sessionStorage.removeItem(PENDING_VERIFICATION_KEY)
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+function resendSecondsLeft(sentAt) {
+  const elapsed = Math.floor((Date.now() - sentAt) / 1000)
+  return Math.max(0, Math.min(VERIFICATION_RESEND_SECONDS, VERIFICATION_RESEND_SECONDS - elapsed))
+}
+
 const imageFor = (product) => {
   if (product.image) {
     if (/^https?:\/\//i.test(product.image) || product.image.startsWith('/')) return product.image
@@ -64,9 +101,10 @@ function App() {
   })
   const [error, setError] = useState('')
   const [trayOpen, setTrayOpen] = useState(false)
-  const [view, setView] = useState('catalog')
+  const [pendingVerification] = useState(readPendingVerification)
+  const [view, setView] = useState(pendingVerification ? 'auth' : 'catalog')
   const [user, setUser] = useState(null)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(pendingVerification?.email || '')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
@@ -75,8 +113,8 @@ function App() {
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('')
   const [otpToken, setOtpToken] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
-  const [authMode, setAuthMode] = useState('signin')
-  const [resendSeconds, setResendSeconds] = useState(0)
+  const [authMode, setAuthMode] = useState(pendingVerification ? 'otp' : 'signin')
+  const [resendSeconds, setResendSeconds] = useState(pendingVerification ? resendSecondsLeft(pendingVerification.sentAt) : 0)
   const [authError, setAuthError] = useState(supabase ? '' : 'Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
   const [authNotice, setAuthNotice] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
@@ -137,13 +175,44 @@ function App() {
       throw new Error(data.message || 'Could not load your account profile.')
     }
     setUser(data.user)
+    if (readPendingVerification()) {
+      // A confirmed session exists, so any unfinished signup in this tab is done.
+      clearPendingVerification()
+      setAuthMode((mode) => mode === 'otp' ? 'signin' : mode)
+      setView((current) => current === 'auth' ? 'catalog' : current)
+    }
     if (data.user.role === 'owner') setView('admin')
     return data.user
+  }
+
+  const startVerification = (address, notice) => {
+    savePendingVerification(address)
+    setOtpToken('')
+    setResendSeconds(VERIFICATION_RESEND_SECONDS)
+    setAuthMode('otp')
+    setAuthError('')
+    setAuthNotice(notice)
+  }
+
+  const changeVerificationEmail = () => {
+    clearPendingVerification()
+    setOtpToken('')
+    setResendSeconds(0)
+    setAuthError('')
+    setAuthNotice('')
+    setAuthMode('signup')
   }
 
   useEffect(() => {
     localStorage.setItem('gigi-cart', JSON.stringify(cart))
   }, [cart])
+
+  useEffect(() => {
+    // Only remember the unfinished signup while the code screen is showing, so
+    // browsing away doesn't drag the user back to it on the next refresh. If they
+    // return later, signing in sends a new code (see signIn).
+    if (view !== 'auth' || authMode !== 'otp') clearPendingVerification()
+  }, [view, authMode])
 
   useEffect(() => {
     if (resendSeconds <= 0) return undefined
@@ -268,6 +337,18 @@ function App() {
         email: email.trim(),
         password,
       })
+      if (signInError?.code === 'email_not_confirmed') {
+        // Correct password, but the signup was never verified: send a fresh code
+        // and reopen the code screen instead of leaving the user stuck here.
+        const address = email.trim()
+        const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: address })
+        if (resendError && resendError.status !== 429) throw resendError
+        setPassword('')
+        startVerification(address, resendError
+          ? `Your email isn’t verified yet. A code was sent to ${address} recently. Enter it below, or resend once the timer ends.`
+          : `Your email isn’t verified yet. We sent a new 6-digit code to ${address}.`)
+        return
+      }
       if (signInError) throw signInError
       const profile = await syncProfile(data.session)
       if (!profile) throw new Error('Could not load your account profile.')
@@ -319,10 +400,10 @@ function App() {
         setView('catalog')
         if (cart.length > 0) setTrayOpen(true)
       } else {
-        setOtpToken('')
-        setResendSeconds(60)
-        setAuthMode('otp')
-        setAuthNotice(`Enter the 6-digit code sent to ${email.trim()}.`)
+        // Supabase answers the same way for new and already-registered emails
+        // (so accounts can't be discovered), so the notice covers both cases.
+        const address = email.trim()
+        startVerification(address, `If ${address} is new to Gigi’s, we sent a 6-digit code to it. Already have an account? Sign in instead.`)
       }
     } catch (requestError) {
       setAuthError(requestError.message)
@@ -342,8 +423,12 @@ function App() {
         token: otpToken.trim(),
         type: 'signup',
       })
+      if (verificationError?.code === 'otp_expired') {
+        throw new Error('That code is wrong or has expired. Use the newest email, or resend a new code.')
+      }
       if (verificationError) throw verificationError
       if (!data.session) throw new Error('Code verified, but no authenticated session was returned.')
+      clearPendingVerification()
       const profile = await syncProfile(data.session)
       if (!profile) throw new Error('Could not load your account profile.')
       setAuthMode('signin')
@@ -364,10 +449,13 @@ function App() {
     setAuthError('')
     try {
       if (!supabase) throw new Error('Supabase Auth is not configured.')
-      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
+      const address = email.trim()
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: address })
+      if (resendError?.status === 429) throw new Error('Too many codes requested. Please wait a minute and try again.')
       if (resendError) throw resendError
-      setResendSeconds(60)
-      setAuthNotice(`A new 6-digit code was sent to ${email.trim()}.`)
+      savePendingVerification(address)
+      setResendSeconds(VERIFICATION_RESEND_SECONDS)
+      setAuthNotice(`If ${address} is waiting for verification, a new 6-digit code is on its way.`)
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -526,7 +614,7 @@ function App() {
             <div className="auth-card">
               <p className="eyebrow">{authMode === 'signin' ? 'Welcome back' : authMode === 'signup' ? 'Join the canteen' : 'Email verification'}</p>
               <h1>{authMode === 'signin' ? <>Good to see<br /><i>you again.</i></> : authMode === 'signup' ? <>Create your<br /><i>account.</i></> : <>Check your<br /><i>email.</i></>}</h1>
-              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : 'Enter the 6-digit code we sent you.'}</p>
+              <p className="auth-intro">{authMode === 'signin' ? 'Sign in to your Gigi’s account.' : authMode === 'signup' ? 'Create a customer account to get started.' : <>Enter the 6-digit code we emailed to <strong>{email.trim()}</strong>.</>}</p>
               {authNotice && <p className="auth-notice" role="status">{authNotice}</p>}
               {authMode === 'otp' ? (
                 <form className="auth-form" onSubmit={verifyOtp}>
@@ -537,6 +625,10 @@ function App() {
                   <button className="auth-mode-toggle" type="button" disabled={authLoading || resendSeconds > 0} onClick={resendOtp}>
                     {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
                   </button>
+                  <button className="auth-mode-toggle" type="button" disabled={authLoading} onClick={changeVerificationEmail}>
+                    Wrong email? Use a different one
+                  </button>
+                  <p className="auth-note">No email? Check your spam folder. If this email already has an account, <button className="auth-inline-link" type="button" disabled={authLoading} onClick={() => { clearPendingVerification(); setOtpToken(''); setAuthError(''); setAuthNotice(''); setAuthMode('signin') }}>sign in instead</button>.</p>
                 </form>
               ) : (
                 <form className="auth-form" onSubmit={authMode === 'signin' ? signIn : register}>
