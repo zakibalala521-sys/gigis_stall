@@ -4,8 +4,6 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const loginHandler = require('../api/auth/login');
-const registerHandler = require('../api/auth/register');
-const verifyEmailHandler = require('../api/auth/verify-email');
 const sessionHandler = require('../api/auth/session');
 const logoutHandler = require('../api/auth/logout');
 const dashboardHandler = require('../api/admin/dashboard');
@@ -34,8 +32,6 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/auth/login', loginHandler);
-app.post('/api/auth/register', registerHandler);
-app.post('/api/auth/verify-email', verifyEmailHandler);
 app.get('/api/auth/session', sessionHandler);
 app.post('/api/auth/logout', logoutHandler);
 app.get('/api/admin/dashboard', dashboardHandler);

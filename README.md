@@ -48,9 +48,11 @@ environments:
   Never use the service-role key for a `VITE_` variable.
 - `SUPABASE_STORAGE_BUCKET`: optional Supabase Storage bucket name for menu
   images; defaults to `menu-images`.
-- `SESSION_SECRET`, `APP_BASE_URL`, `REQUIRE_EMAIL_VERIFICATION`,
-  `RESEND_API_KEY`, and `EMAIL_FROM` are only used by the legacy cookie-auth
-  endpoints; the React application now uses Supabase Auth.
+- `SESSION_SECRET` is only used by the legacy cookie-auth login endpoint; the
+  React application uses Supabase Auth. `APP_BASE_URL`,
+  `REQUIRE_EMAIL_VERIFICATION`, `RESEND_API_KEY`, and `EMAIL_FROM` are no longer
+  used (the legacy signup endpoints were removed) and can be deleted from
+  Vercel.
 
 After an owner account signs in, the app opens an owner-only dashboard with
 sales totals and order management. Dashboard data is served by
@@ -71,8 +73,16 @@ project. Configure Supabase Auth email templates to send the six-digit
 `{{ .Token }}` code for both signup confirmation and password recovery, and
 configure the project's custom SMTP provider in Supabase Auth. Enable the
 Email provider's **Confirm email** setting so signup requires OTP verification.
-The client
-supports signup OTP, resend countdown, and password login. Signed-in users can
+The client expects a 6-digit code, so keep **Email OTP length** at 6; an
+**Email OTP expiration** of 600–900 seconds is recommended. Set the password
+requirements (minimum 8 characters with lowercase, uppercase, digits, and
+symbols) in Supabase Auth as well, because the browser check alone can be
+bypassed.
+
+The client supports signup OTP, resend countdown, and password login. An
+unfinished signup is remembered in the browser tab while the code screen is
+open, so a refresh returns to it. If an unverified user later signs in with the
+correct password, a new code is sent and the code screen reopens. Signed-in users can
 change their password by confirming their current password; this does not send
 a recovery email. Forgotten passwords must be reset by an administrator
 through Supabase Auth.
