@@ -216,6 +216,7 @@ h1 i, h2 i { display: inline-block; color: var(--accent); font-family: var(--fon
 .auth-inline-link { padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .auth-inline-link:hover { color: var(--accent); }
 .auth-inline-link:disabled { cursor: wait; opacity: .6; }
+.auth-forgot-link { align-self: flex-end; margin-top: 4px; font-size: 14px; }
 .auth-intro strong { color: var(--ink); overflow-wrap: anywhere; }
 .account-details { margin: 28px 0 8px; padding: 0; border: var(--border); border-radius: 14px; overflow: hidden; }
 .account-details div { display: flex; justify-content: space-between; gap: 20px; padding: 14px 16px; border-top: 2px dashed var(--line); }

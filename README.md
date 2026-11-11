@@ -69,23 +69,29 @@ the tray or ordering controls.
 
 Do not set `VITE_API_URL` for the Vercel deployment; the client calls the
 same-origin API routes. After adding or changing variables, redeploy the
-project. Configure Supabase Auth email templates to send the six-digit
-`{{ .Token }}` code for both signup confirmation and password recovery, and
+project. Configure Supabase Auth email templates so that both **Confirm
+signup** and **Reset Password** show the `{{ .Token }}` code (not a link), and
 configure the project's custom SMTP provider in Supabase Auth. Enable the
 Email provider's **Confirm email** setting so signup requires OTP verification.
-The client expects a 6-digit code, so keep **Email OTP length** at 6; an
-**Email OTP expiration** of 600–900 seconds is recommended. Set the password
-requirements (minimum 8 characters with lowercase, uppercase, digits, and
-symbols) in Supabase Auth as well, because the browser check alone can be
-bypassed.
+The code boxes accept 6–10 digits to match any **Email OTP length**; 6 is the
+easiest to type. An **Email OTP expiration** of 600–900 seconds is recommended.
+Set the password requirements (minimum 8 characters with lowercase, uppercase,
+digits, and symbols) in Supabase Auth as well, because the browser check alone
+can be bypassed.
 
 The client supports signup OTP, resend countdown, and password login. An
 unfinished signup is remembered in the browser tab while the code screen is
 open, so a refresh returns to it. If an unverified user later signs in with the
-correct password, a new code is sent and the code screen reopens. Signed-in users can
-change their password by confirming their current password; this does not send
-a recovery email. Forgotten passwords must be reset by an administrator
-through Supabase Auth.
+correct password, a new code is sent and the code screen reopens.
+
+**Forgot password** works the same way. **Sign in → Forgot password?** asks for
+the email and sends a reset code. The same answer is shown whether or not the
+email has an account, so registered emails stay private. The user enters the
+code and a new password on one screen. The reset screen survives a refresh and
+has a 60-second resend timer. If the code is accepted but the new password is
+rejected, the form asks only for a new password. After a reset, the user is
+signed in and other devices are signed out. Signed-in users can also change
+their password on the Account page by confirming their current one.
 Guest carts stay in browser storage and are available after sign-in.
 
 The server links a confirmed Supabase Auth user to an existing `public.users`
